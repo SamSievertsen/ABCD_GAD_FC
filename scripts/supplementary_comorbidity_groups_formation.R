@@ -28,6 +28,10 @@ original_HC_subjects_not_resampled <- read.csv("./data_processed/GAD_HC_subjects
   filter(group == "HC") %>% 
   dplyr::select(c(src_subject_id, eventname, group))
 
+# Site data
+site_data <- read.csv("./data_raw/ABCD_sitename_data.csv") %>% 
+  dplyr::select(c(subjectkey, eventname, interview_age, sex, site_name))
+
 
 ## Data Wrangling ## 
 
@@ -129,16 +133,13 @@ KSADS_data_for_grouping_filtered <- ABCD_KSADS_release_5.1_data_for_merging %>%
         "Separation_Anxiety_Disorder_Source",
         "MDD_Source"
       )), ~ .x == "Youth") &
-        
         # Ensure no column contains "Parent" or "Concordant"
         if_all(all_of(c(
           "GAD_Source",
           "Social_Anxiety_Disorder_Source",
           "Separation_Anxiety_Disorder_Source",
           "MDD_Source"
-        )), ~ !(.x %in% c("Parent", "Concordant")))
-    )
-  )
+        )), ~ !(.x %in% c("Parent", "Concordant")))))
 
 #1.64 Remove subjects who have no GAD or comorbid diagnoses of interest
 KSADS_data_for_grouping_filtered <- KSADS_data_for_grouping_filtered %>% 
@@ -156,9 +157,7 @@ random_sample_to_timepoint <- function(df, timepoint_var, eventname_vals = c("ba
       random_timepoint = if_else(
         eventname %in% eventname_vals,
         sample(eventname_vals, 1),
-        eventname
-      )
-    ) %>%
+        eventname)) %>%
     ungroup()
 }
 
@@ -167,7 +166,7 @@ is_parent_or_concordant <- function(diagnosis_column) {
   diagnosis_column %in% c("Parent", "Concordant")
 }
 
-#2.21 Subset GAD subjects with any comorbidities (parent or concordant reported diagnoses only)
+#2.211 Subset GAD subjects with any comorbidities (parent or concordant reported diagnoses only)
 GAD_with_comorbidities <- KSADS_data_for_grouping_filtered %>%
   filter(group == "GAD" &
       # Check if GAD diagnosis is Parent or Concordant
@@ -182,7 +181,7 @@ GAD_with_comorbidities <- KSADS_data_for_grouping_filtered %>%
       (Social_Anxiety_Disorder == 1 | Separation_Anxiety_Disorder == 1 | MDD == 1)) %>%
   mutate(comorbidity_group = "GAD_with_comorbidities")
 
-#2.22 Subset GAD subjects only (no comorbidities, parent or concordant reported diagnoses only)
+#2.212 Subset GAD subjects only (no comorbidities, parent or concordant reported diagnoses only)
 GAD_only <- KSADS_data_for_grouping_filtered %>%
   filter(group == "GAD" & 
            Social_Anxiety_Disorder == 0 & 
@@ -191,81 +190,177 @@ GAD_only <- KSADS_data_for_grouping_filtered %>%
            is_parent_or_concordant(GAD_Source)) %>% 
   mutate(comorbidity_group = "GAD_Only")
 
-#2.23 Subset Social Anxiety without GAD, Separation Anxiety, or MDD (parent or concordant reported diagnoses only)
+#2.213 Combine the src_subject_id of GAD subjects from both GAD groups to reference in the creation of other clinical groups (i.e., ensure those subjects are not double dipped)
+GAD_subject_ids <- union(
+  GAD_with_comorbidities$src_subject_id,
+  GAD_only$src_subject_id)
+
+#2.22 Subset Social Anxiety without GAD, Separation Anxiety, or MDD (parent or concordant reported diagnoses only)
 Social_Anxiety_only <- KSADS_data_for_grouping_filtered %>%
-  filter(Social_Anxiety_Disorder == 1 & 
-           group != "GAD" & 
-           Separation_Anxiety_Disorder == 0 & 
-           MDD == 0 &
-           is_parent_or_concordant(Social_Anxiety_Disorder_Source)) %>%
+  filter(
+    Social_Anxiety_Disorder == 1 &
+      GAD_Source == "None" &
+      Separation_Anxiety_Disorder == 0 &
+      MDD == 0 &
+      is_parent_or_concordant(Social_Anxiety_Disorder_Source) &
+      !(src_subject_id %in% GAD_subject_ids) # Exclude GAD subjects
+  ) %>%
+  group_by(src_subject_id) %>% # Group by unique subjects
+  slice_sample(n = 1) %>% # Randomly select one row per subject
+  ungroup() %>%
   mutate(comorbidity_group = "Social_Anxiety_Only")
 
-#2.24 Subset Separation Anxiety without GAD (parent or concordant reported diagnoses only)
+#2.23 Subset Separation Anxiety without GAD (parent or concordant reported diagnoses only)
 Separation_Anxiety_only <- KSADS_data_for_grouping_filtered %>%
-  filter(Separation_Anxiety_Disorder == 1 & 
-           group != "GAD" & 
-           Social_Anxiety_Disorder == 0 & 
-           MDD == 0 &
-           is_parent_or_concordant(Separation_Anxiety_Disorder_Source)) %>%
+  filter(
+    Separation_Anxiety_Disorder == 1 &
+      GAD_Source == "None" &
+      Social_Anxiety_Disorder == 0 &
+      MDD == 0 &
+      is_parent_or_concordant(Separation_Anxiety_Disorder_Source) &
+      !(src_subject_id %in% GAD_subject_ids) # Exclude GAD subjects
+  ) %>%
+  group_by(src_subject_id) %>% # Group by unique subjects
+  slice_sample(n = 1) %>% # Randomly select one row per subject
+  ungroup() %>%
   mutate(comorbidity_group = "Separation_Anxiety_Only")
 
-#2.25 Subset MDD without GAD (parent or concordant reported diagnoses only)
+#2.24 Subset MDD without GAD (parent or concordant reported diagnoses only)
 MDD_only <- KSADS_data_for_grouping_filtered %>%
-  filter(MDD == 1 & 
-           group != "GAD" & 
-           Social_Anxiety_Disorder == 0 & 
-           Separation_Anxiety_Disorder == 0 &
-           is_parent_or_concordant(MDD_Source)) %>%
+  filter(
+    MDD == 1 &
+      GAD_Source == "None" &
+      Social_Anxiety_Disorder == 0 &
+      Separation_Anxiety_Disorder == 0 &
+      is_parent_or_concordant(MDD_Source) &
+      !(src_subject_id %in% GAD_subject_ids) # Exclude GAD subjects
+  ) %>%
+  group_by(src_subject_id) %>% # Group by unique subjects
+  slice_sample(n = 1) %>% # Randomly select one row per subject
+  ungroup() %>%
   mutate(comorbidity_group = "MDD_Only")
 
-#2.26 Subset subjects with multiple comorbidities (having any combination of comorbid conditions, with parent or concordant diagnoses only)
-subjects_w_multiple_comorbidities <- KSADS_data_for_grouping_filtered %>%
-  filter((is_parent_or_concordant(Social_Anxiety_Disorder_Source) & 
-            is_parent_or_concordant(Separation_Anxiety_Disorder_Source)) |
-           (is_parent_or_concordant(Social_Anxiety_Disorder_Source) & 
-              is_parent_or_concordant(MDD_Source)) |
-           (is_parent_or_concordant(Separation_Anxiety_Disorder_Source) & 
-              is_parent_or_concordant(MDD_Source))) %>%
-  mutate(comorbidity_group = "Multiple_Comorbidities")
-
-#2.3 Randomly assign subjects_w_multiple_comorbidities to one of the diagnostic groups
+#2.251 Subset subjects with multiple comorbidities (having any combination of comorbid conditions, with parent or concordant diagnoses only)
 subjects_w_multiple_comorbidities <- subjects_w_multiple_comorbidities %>%
-  mutate(comorbidity_group = sample(
-    c("GAD_with_comorbidities", "Social_Anxiety_Only", "Separation_Anxiety_Only", "MDD_Only"),
-    size = n(),
-    replace = TRUE))
+  mutate(
+    eligible_groups = case_when(
+      Social_Anxiety_Disorder == 1 &
+        is_parent_or_concordant(Social_Anxiety_Disorder_Source) &
+        Separation_Anxiety_Disorder == 1 &
+        is_parent_or_concordant(Separation_Anxiety_Disorder_Source) ~ list(c("Social_Anxiety_Only", "Separation_Anxiety_Only")),
+      Social_Anxiety_Disorder == 1 &
+        is_parent_or_concordant(Social_Anxiety_Disorder_Source) &
+        MDD == 1 &
+        is_parent_or_concordant(MDD_Source) ~ list(c("Social_Anxiety_Only", "MDD_Only")),
+      Separation_Anxiety_Disorder == 1 &
+        is_parent_or_concordant(Separation_Anxiety_Disorder_Source) &
+        MDD == 1 &
+        is_parent_or_concordant(MDD_Source) ~ list(c("Separation_Anxiety_Only", "MDD_Only")),
+      TRUE ~ list(NULL) # Safety net for unexpected cases
+    )
+  )
 
+#2.252 Randomly assign subjects_w_multiple_comorbidities to one of the diagnostic groups
+subjects_w_multiple_comorbidities <- subjects_w_multiple_comorbidities %>%
+  rowwise() %>% # Allow row-wise operations
+  mutate(
+    comorbidity_group = sample(eligible_groups, size = 1) # Randomly pick one eligible group
+  ) %>%
+  ungroup() # Return to normal operations
 
+#2.3 Combine all groups into one dataframe
+supplementary_clinical_groups <- bind_rows(
+  GAD_with_comorbidities,
+  GAD_only,
+  Social_Anxiety_only,
+  Separation_Anxiety_only,
+  MDD_only,
+  subjects_w_multiple_comorbidities) %>% 
+  dplyr::select(-eligible_groups)
 
-#2.4 Combine all groups into one dataframe
-final_groups <- bind_rows(GAD_with_comorbidities, 
-                          GAD_only, 
-                          Social_Anxiety_only, 
-                          Separation_Anxiety_only, 
-                          MDD_only, 
-                          subjects_w_multiple_comorbidities)
+#2.4 Verify that the sampling of the supplementary clinical groups
+#2.411 Check for unique subjects
+duplicates <- supplementary_clinical_groups %>%
+  group_by(src_subject_id) %>%
+  filter(n() > 1)
 
-#2.5 Now we will apply random sampling for continuous GAD subjects to either timepoint
-final_groups <- final_groups %>%
-  random_sample_to_timepoint(timepoint_var = "eventname")
+#2.412 Print whether subjects were duplicated or not
+if (nrow(duplicates) > 0) {
+  message("Duplicate subjects found:")
+  print(duplicates)
+} else {
+  message("All subjects are unique.")
+}
 
+#2.42 Ensure diagnoses of interest were reported only by the parent (or concordantly)
+#2.421 Define validation for each comorbidity group
+supplementary_clinical_groups <- supplementary_clinical_groups %>%
+  mutate(
+    is_valid = case_when(
+      comorbidity_group == "GAD_Only" ~ GAD_Source %in% c("Parent", "Concordant"),
+      comorbidity_group == "GAD_with_comorbidities" ~ GAD_Source %in% c("Parent", "Concordant") &
+        (Social_Anxiety_Disorder_Source %in% c("Parent", "Concordant") |
+            Separation_Anxiety_Disorder_Source %in% c("Parent", "Concordant") |
+            MDD_Source %in% c("Parent", "Concordant")),
+      comorbidity_group == "MDD_Only" ~ MDD_Source %in% c("Parent", "Concordant") &
+        GAD_Source == "None",
+      comorbidity_group == "Separation_Anxiety_Only" ~ Separation_Anxiety_Disorder_Source %in% c("Parent", "Concordant") &
+        GAD_Source == "None",
+      comorbidity_group == "Social_Anxiety_Only" ~ Social_Anxiety_Disorder_Source %in% c("Parent", "Concordant") &
+        GAD_Source == "None",
+      TRUE ~ FALSE # Catch-all for unexpected comorbidity_group values
+    )
+  )
+
+#2.422 Identify invalid rows
+invalid_rows <- supplementary_clinical_groups %>%
+  filter(!is_valid)
+
+#2.423 Print validation results
+if (nrow(invalid_rows) > 0) {
+  message(
+    "Invalid rows found: ",
+    nrow(invalid_rows), " rows (", round(100 * nrow(invalid_rows) / nrow(supplementary_clinical_groups), 2), "% of total).")
+  
+  print(invalid_rows)
+  
+} else {
+  
+  message("All rows are valid according to the specified criteria.")
+  
+}
+
+#2.43 Create a frequency table for each clinical group at each time point
+clinical_group_frequency_table <- supplementary_clinical_groups %>%
+  count(comorbidity_group, eventname)
 
 #3. Replace the existing HC with the non resampled HC subjects so that they can be resampled again according to the comorbidity groups
 #3.1 Prepare the original HC group dataframe for merging
 original_HC_subjects_for_merging <- original_HC_subjects_not_resampled %>% 
   mutate(GAD_Source = rep("None"),
-         Social_Anxiety_disorder = 0,
+         Social_Anxiety_Disorder = 0,
          Social_Anxiety_Disorder_Source = rep("None"),
          Separation_Anxiety_Disorder = 0,
          Separation_Anxiety_Disorder_Source = rep("None"),
          MDD = 0,
-         MDD_Source = rep("None"))
+         MDD_Source = rep("None"),
+         comorbidity_group = rep("HC"))
 
 #3.2 Merge the non-resampled HC subjects into the updated supplemental (comorbidity) sample for resampling
-supplemental_comorbidity_analysis_sample_not_resampled <- full_join( , original_HC_subjects_for_merging)
+supplemental_comorbidity_analysis_sample_not_resampled <- full_join(supplementary_clinical_groups , original_HC_subjects_for_merging) %>% 
+  dplyr::select(-is_valid)
 
+
+#4. Merge in essential demographic data
+supplemental_comorbidity_analysis_sample_not_resampled <- supplemental_comorbidity_analysis_sample_not_resampled %>%
+  inner_join(site_data, 
+             by = c("src_subject_id" = "subjectkey", "eventname" = "eventname")) %>% 
+  dplyr::select(c(src_subject_id, eventname, interview_age, sex, site_name, everything(.)))
 
 ## Output ## 
 
 #1. Write the comorbidity sample + non-resampled HC subject dataframe as a csv
-write.csv(supplemental_comorbidity_analysis_sample_not_resampled, row.names = FALSE)
+write.csv(supplemental_comorbidity_analysis_sample_not_resampled, "./data_processed/supplemental_comorbidity_sample_hc_not_resampled.csv", row.names = FALSE)
+
+#2. Write the final comorbidity sample (standalone) as a csv
+write.csv(supplementary_clinical_groups, "./data_processed/supplemental_comorbidity_group.csv", row.names = FALSE)
