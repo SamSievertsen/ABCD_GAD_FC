@@ -2,6 +2,7 @@
 
 # Load in necessary packages and configure environmental variables
 library(dplyr)
+library(tidyr)
 library(purrr)
 library(stats)
 library(lme4)
@@ -168,11 +169,11 @@ GAD_HC_connectivity_analysis_results_merged_adjusted_p_values_pivoted <-
   GAD_HC_connectivity_analysis_results_merged_adjusted_p_values_pivoted %>%
   dplyr::select(
     c(column_name,
-      analysis_group_f_value,
-      analysis_group_df,
-      analysis_group_residual_df,
-      analysis_group_p_value,
-      analysis_group_p_adjusted,
+      group_f_value,
+      group_df,
+      group_residual_df,
+      group_p_value,
+      group_p_adjusted,
       rsfmri_c_ngd_meanmotion_estimate,
       rsfmri_c_ngd_meanmotion_t_value,
       rsfmri_c_ngd_meanmotion_std_error,
@@ -190,4 +191,4 @@ GAD_HC_connectivity_analysis_results_merged_adjusted_p_values_pivoted <-
 ## Output ##
 
 #1. Save the full model results as a csv file
-write.csv(GAD_HC_connectivity_analysis_results_merged_adjusted_p_values_pivoted, "GAD_HC_connectivity_analysis_results.csv", row.names = FALSE)
+write.csv(GAD_HC_connectivity_analysis_results_merged_adjusted_p_values_pivoted, "./results/GAD_HC_connectivity_analysis_results.csv", row.names = FALSE)
