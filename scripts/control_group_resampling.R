@@ -147,7 +147,9 @@ resample_healthy_controls <- function(site_id, HC_group_data, merged_HC_GAD_dist
     unique()
   
   #1.4 Handle the edge case present for some sites with only one time point of data collected
-  if (length(followup_GAD_site_visit_percent) == 0) {
+  if (is.null(followup_GAD_site_visit_percent) || 
+      length(followup_GAD_site_visit_percent) == 0 || 
+      all(is.na(followup_GAD_site_visit_percent))) {
     followup_GAD_site_visit_percent <- 0
   }
   
@@ -312,7 +314,7 @@ for (site in unique_sites) {
   healthy_control_samples_list[[site]] <- healthy_control_sample
 }
 
-#2.3 Combine all samples into a single dataframe
+ #2.3 Combine all samples into a single dataframe
 combined_healthy_control_samples <- bind_rows(healthy_control_samples_list, .id = "site_name")
 
 #2.41 Add back in the clinical + analysis group columns for the HC group
