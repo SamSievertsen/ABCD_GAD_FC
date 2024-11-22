@@ -8,6 +8,7 @@ library(stats)
 library(lme4)
 library(lmerTest)
 library(car)
+library(emmeans)
 library(ggseg)
 library(ggseg3d)
 library(ggsegGordon)
@@ -186,6 +187,56 @@ clinical_comorbid_HC_connectivity_analysis_results_merged_adjusted_p_values_pivo
       eventname_df,
       eventname_residual_df,
       eventname_p_value))
+
+
+## Post-Hoc Contrasts ##
+
+#1. Run pairwise EMM contrasts on each level of the comorbidity_group variable for associations of interest
+#1.1 Create a list of relevant dependent variables
+post_hoc_dependent_variables <- c("rsfmri_c_ngd_vta_ngd_vta", 
+                         "rsfmri_cor_ngd_cerc_scs_aglh", 
+                         "rsfmri_cor_ngd_cerc_scs_cdelh", 
+                         "rsfmri_cor_ngd_sa_scs_ptlh")
+
+#1.2 Create a dataframe to store results
+emmeans_results <- list()
+
+#1.3 Iterate through each dependent variable
+for (dv in post_hoc_dependent_variables) {
+  
+  #1.31 Fit the model for the current dependent variable
+  post_hoc_model <- lmerTest::lmer(
+    comorbid_clinical_HC_group_connectivity_analysis_data[, dv] ~ 
+      comorbidity_group + rsfmri_c_ngd_meanmotion + sex + eventname + 
+      (1 | site_name) + (1 | rel_family_id), 
+    na.action = na.omit, 
+    data = comorbid_clinical_HC_group_connectivity_analysis_data
+  )
+  
+  #1.32 Compute estimated marginal means for comorbidity_group
+  emm <- emmeans(post_hoc_model, ~ comorbidity_group)
+  
+  #1.33 Perform pairwise contrasts
+  pairwise_contrasts <- contrast(emm, method = "pairwise")
+  
+  #1.34 Store results
+  emmeans_results[[dv]] <- list(
+    "EMMs" = emm,
+    "Pairwise_Contrasts" = pairwise_contrasts
+  )
+  
+  #1.35 Print summary of results for the current DV
+  print(paste("Results for:", dv))
+  
+  #1.36 Print the estimated marginal means
+  print("Estimated Marginal Means:")
+  print(summary(emm))
+  
+  #1.37 Print the pairwise contrasts
+  print("Pairwise Contrasts:")
+  print(summary(pairwise_contrasts))
+  
+}
 
 
 ## Output ##

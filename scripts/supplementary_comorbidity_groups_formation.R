@@ -24,9 +24,7 @@ GAD_HC_group <- read.csv("./data_processed/GAD_HC_resampled_merged_groups.csv") 
   dplyr::select(c(src_subject_id, eventname, group))
 
 # Original HC group (non-resampled)
-original_HC_subjects_not_resampled <- read.csv("./data_processed/GAD_HC_subjects_not_resampled.csv") %>% 
-  filter(group == "HC") %>% 
-  dplyr::select(c(src_subject_id, eventname, group))
+original_HC_subjects_not_resampled <- read.csv("./data_processed/supplementary_healty_control_group.csv")
 
 # Site data
 site_data <- read.csv("./data_raw/ABCD_sitename_data.csv") %>% 
@@ -240,7 +238,26 @@ MDD_only <- KSADS_data_for_grouping_filtered %>%
   ungroup() %>%
   mutate(comorbidity_group = "MDD_Only")
 
-#2.251 Subset subjects with multiple comorbidities (having any combination of comorbid conditions, with parent or concordant diagnoses only)
+#2.251 Initially filter subjects with multiple (non-GAD) comorbidities
+subjects_w_multiple_comorbidities <- KSADS_data_for_grouping_filtered %>%
+  filter(
+    GAD_Source == "None" &
+      (
+        (Social_Anxiety_Disorder == 1 &
+           is_parent_or_concordant(Social_Anxiety_Disorder_Source) &
+           Separation_Anxiety_Disorder == 1 &
+           is_parent_or_concordant(Separation_Anxiety_Disorder_Source)) |
+          (Social_Anxiety_Disorder == 1 &
+             is_parent_or_concordant(Social_Anxiety_Disorder_Source) &
+             MDD == 1 & is_parent_or_concordant(MDD_Source)) |
+          (Separation_Anxiety_Disorder == 1 &
+             is_parent_or_concordant(Separation_Anxiety_Disorder_Source) &
+             MDD == 1 & is_parent_or_concordant(MDD_Source))
+      ) &
+      !(src_subject_id %in% GAD_subject_ids) # Exclude GAD subjects
+  )
+
+#2.252 Subset subjects with multiple comorbidities (having any combination of comorbid conditions, with parent or concordant diagnoses only)
 subjects_w_multiple_comorbidities <- subjects_w_multiple_comorbidities %>%
   mutate(
     eligible_groups = case_when(
@@ -260,7 +277,7 @@ subjects_w_multiple_comorbidities <- subjects_w_multiple_comorbidities %>%
     )
   )
 
-#2.252 Randomly assign subjects_w_multiple_comorbidities to one of the diagnostic groups
+#2.253 Randomly assign subjects_w_multiple_comorbidities to one of the diagnostic groups
 subjects_w_multiple_comorbidities <- subjects_w_multiple_comorbidities %>%
   rowwise() %>% # Allow row-wise operations
   mutate(
