@@ -12,9 +12,13 @@ comorbidity_hc_group_not_resampled <- read.csv("./data_processed/supplemental_co
 ## Data Wrangling + Prep for Resampling ##
 
 #1. Create a broader variable differentiating the HC and clinical (comorbidity) groups and clean the dataframe for resampling
-#1.1 Create the broad clinical group variable to be used in resampling the HC group
+#1.11 Create the broad clinical group variable to be used in resampling the HC group
 broad_cleaned_comorbidity_hc_group_not_resampled <- comorbidity_hc_group_not_resampled %>% 
   mutate(broad_clinical_group = if_else(comorbidity_group == "HC", "HC", "Clinical_Group"))
+
+#1.12 Create a copy of the clinical (comorbidity) group only data for later merging
+cleaned_comorbidity_group_for_merging <- broad_cleaned_comorbidity_hc_group_not_resampled %>% 
+  filter(broad_clinical_group == "Clinical_Group")
 
 #1.2 Retain only columns of interest to the resampling
 broad_cleaned_comorbidity_hc_group_not_resampled <- broad_cleaned_comorbidity_hc_group_not_resampled %>% 
@@ -336,13 +340,15 @@ healthy_control_sample_resampled <- combined_healthy_control_samples %>%
          Separation_Anxiety_Disorder_Source = rep("None"),
          MDD = 0,
          MDD_Source = rep("None"),
-         comorbidity_group = rep("HC"))
+         comorbidity_group = rep("HC"),
+         broad_clinical_group = rep("HC"))
 
 #2.42 Add back in the demographic information 
-healthy_control_sample_resampled <- left_join(healthy_control_sample_resampled, merged_comorbidity_HC_sample_data_cleaned)
+healthy_control_sample_resampled <- left_join(healthy_control_sample_resampled, comorbidity_hc_group_not_resampled) %>% 
+  dplyr::select(c(src_subject_id, eventname, interview_age, sex, site_name, group, everything(.)))
 
 #3. Merge the comorbidity group with the newly sampled HC group
-comorbidity_HC_sample <- full_join(comorbidity_group, healthy_control_sample_resampled)
+comorbidity_HC_sample <- full_join(cleaned_comorbidity_group_for_merging, healthy_control_sample_resampled)
 
 
 ## Verify Accuracy + Reliability of Resampling Procedure ##
@@ -397,11 +403,11 @@ if_else(final_HC_sample_unique == TRUE,
 ## Output ## 
 
 #1. Write the site + visit distribution comparison counts as a csv file
-write.csv(resampled_HC_site_visit_distribution_comparison, "./data_processed/resampled_HC_site_visit_distribution_comparison.csv", row.names = FALSE)
+write.csv(resampled_HC_site_visit_distribution_comparison, "./data_processed/supplementary_resampled_HC_site_visit_distribution_comparison.csv", row.names = FALSE)
 
 #2. Write the final control and merged HC + comorbidity sample dataframes as csv files
 #2.1 Write the final HC sample as a csv file
-write.csv(healthy_control_sample_resampled, "./data_processed/healthy_control_group_resampled.csv", row.names = FALSE)
+write.csv(healthy_control_sample_resampled, "./data_processed/supplementary_healthy_control_group_resampled.csv", row.names = FALSE)
 
 #2.2 Write the final merged HC + comorbidity sample as a csv file
-write.csv(comorbidity_HC_sample, "./data_processed/comorbidity_HC_resampled_merged_groups.csv", row.names = FALSE)
+write.csv(comorbidity_HC_sample, "./data_processed/comorbidity_hc_resampled_merged_groups.csv", row.names = FALSE)
