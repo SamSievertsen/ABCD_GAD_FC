@@ -21,6 +21,11 @@ ABCD_rsfMRI_Data <- ABCD_rsfMRI_Data[-1,]
 dimensional_analysis_cbcl_data <- read.csv("./data_raw/abcd_cbcls01.csv")
 dimensional_analysis_cbcl_data <- dimensional_analysis_cbcl_data[-1, ]
 
+# Read in BPM data
+#Setup: Load BPM Data 
+youth_BPM_data <- read.csv("./data_raw/abcd_yssbpm01.csv") 
+youth_BPM_data <- youth_BPM_data[-1, ]
+
 # Read in site visit analysis data
 dimensional_analysis_repeat_sample <- read.csv("./data_processed/main_analysis/site_visit_analysis_data.csv")
 
@@ -87,10 +92,13 @@ dimensional_analysis_cbcl_data <- dimensional_analysis_cbcl_data %>%
   mutate_at(vars(10:90), as.numeric)
 
 #1.13 Merge family ID data with analysis data
+#1.131 Clean the family ID data
 abcd_family_id_data <- abcd_family_id_data %>%
   filter(eventname == "baseline_year_1_arm_1") %>%
   dplyr::select(c(subjectkey, rel_family_id)) %>%
   rename(family_id = rel_family_id)
+
+#1.132 Merge the family ID data into the sample
 dimensional_analysis_repeat_sample <- left_join(dimensional_analysis_repeat_sample, abcd_family_id_data)
 
 #1.14 Combine imaging, cbcl, and subject group data
@@ -128,7 +136,35 @@ for (col in cbcl_columns_to_check_for_empties) {
     cbcl_data[!(is.na(cbcl_data[[col]]) | cbcl_data[[col]] == ""),]
 }
 
+
+#2. BPM Data
+#2.11 Create a cleaned (complete) version of the BPM containing non NA/empty scores of interest that have been derived without missing questions
+youth_BPM_data_filtered <- youth_BPM_data %>% 
+  dplyr::select(c(subjectkey, eventname, bpm_y_scr_internal_t, bpm_y_scr_internal_nm, bpm_y_scr_external_t, bpm_y_scr_external_nm, poa_y_ss_sum, poa_y_ss_sum_nm))
+
+#2.12 Keep rows where the BPM scores are not NA or empty, and where the number of questions missing that went into the calculation of each BPM score is 0
+youth_BPM_data_complete_data <- subset(youth_BPM_data_filtered, !is.na(bpm_y_scr_internal_t) & bpm_y_scr_internal_t != "" & !is.na(bpm_y_scr_external_t) & bpm_y_scr_external_t != "" & bpm_y_scr_internal_nm == 0 & bpm_y_scr_external_nm == 0)
+
+#2.13 Keep only the columns of interest
+youth_BPM_data_clean <- youth_BPM_data_complete_data %>% 
+  dplyr::select(c(subjectkey, eventname, bpm_y_scr_internal_t, bpm_y_scr_external_t))
+
+
+#3. Merged BPM + CBCL data
+#3.1 Merge the BPM data with the imaging + CBCL data
+dimensional_analysis_data <- full_join(cbcl_data, youth_BPM_data_clean) %>% 
+  filter(eventname == "baseline_year_1_arm_1" | eventname == "2_year_follow_up_y_arm_1") %>% 
+  dplyr::select(-scanner_model)
+
+#3.2 Retain only subjects of interest to the analyses
+dimensional_analysis_data <- dimensional_analysis_data %>% 
+  filter(analysis_group == "GAD" | analysis_group == "control")
+
+
 ## Output ## 
 
 #1. Write the CBCL data as a csv file
 write.csv(cbcl_data, "./data_processed/main_analysis/dimensional_analysis_imaging_cbcl_data.csv", row.names = FALSE)
+
+#2. Write the BPM data as a csv file
+write.csv(dimensional_analysis_data, "./data_processed/main_analysis/dimensional_analysis_data.csv", row.names = FALSE)
