@@ -3595,7 +3595,7 @@ if_else(final_cn_sample_unique == TRUE, print("NA; Controls Sampled Successfully
 write.csv(final_comparitive_count, "./data_processed/main_analysis/resampled_gad_hc_comparitive_count.csv", row.names = FALSE)
 
 #2. Save a csv file containing the final control sample dataframe
-write.csv(control_sample, "./data_processed/main_analysis/merged_resampled_hc_gad_sample.csv", row.names = FALSE)
+write.csv(control_sample, "./data_processed/main_analysis/resampled_hc_sample.csv", row.names = FALSE)
 
 #3. Write a csv file containing the GAD group data
 write.csv(GAD_grouped_demo, "./data_processed/main_analysis/gad_group.csv", row.names = FALSE)
