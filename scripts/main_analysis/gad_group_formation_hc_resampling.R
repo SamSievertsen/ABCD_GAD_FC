@@ -136,11 +136,9 @@ raw_control_data <- clinical_imaging_data %>%
 #3.44 Ensure data is converted to the correct type
 raw_control_data$age_in_years <- floor((as.numeric(raw_control_data$interview_age)) / 12)
 
-#3.51 Determine if there are any subjects who have assessment data at separate sites
-multi_site_subjects <- c("NDAR_INV6D02DABX", "NDAR_INV7YJ6UFDB", "NDAR_INVA2ZPZTJJ", "NDAR_INVNTAR3TAF", "NDAR_INVPP5NK3LX", "NDAR_INVUFF64VGJ", "NDAR_INVUMJVH4W6", "NDAR_INVWF7C1DEL", "NDAR_INVY92TEZW6")
+#3.51 Determine if there are any subjects who have assessment data at separate sites - redacted
 
-#3.52 Store IDs of subjects with assessment data at multiple sites
-multi_site_subjects <- c("NDAR_INV6D02DABX", "NDAR_INV7YJ6UFDB", "NDAR_INVA2ZPZTJJ", "NDAR_INVNTAR3TAF", "NDAR_INVPP5NK3LX", "NDAR_INVUFF64VGJ", "NDAR_INVUMJVH4W6", "NDAR_INVWF7C1DEL", "NDAR_INVY92TEZW6")
+#3.52 Store IDs of subjects with assessment data at multiple sites - redacted
 
 #3.532 Randomly select one data point for each subject with assessment data at multiple sites. First, initialize a new data frame to store the selected data points
 selected_data <- data.frame()
