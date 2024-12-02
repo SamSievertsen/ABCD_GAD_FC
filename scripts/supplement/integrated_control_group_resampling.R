@@ -6,7 +6,7 @@ options(digits = 8, scipen = 999)
 
 # Read in required data 
 # GAD + HC sample data
-GAD_HC_group_not_resampled <- read.csv("./data_processed/GAD_HC_subjects_not_resampled.csv")
+GAD_HC_group_not_resampled <- read.csv("./data_processed/supplement/GAD_HC_subjects_not_resampled.csv")
 
 
 ## Data Wrangling + Prep for Resampling ##
@@ -382,11 +382,11 @@ if_else(final_HC_sample_unique == TRUE,
 ## Output ## 
 
 #1. Write the site + visit distribution comparison counts as a csv file
-write.csv(resampled_HC_site_visit_distribution_comparison, "./data_processed/resampled_HC_site_visit_distribution_comparison.csv", row.names = FALSE)
+write.csv(resampled_HC_site_visit_distribution_comparison, "./data_processed/supplement/resampled_HC_site_visit_distribution_comparison.csv", row.names = FALSE)
 
 #2. Write the final control and merged HC + GAD sample dataframes as csv files
 #2.1 Write the final HC sample as a csv file
-write.csv(healthy_control_sample_resampled, "./data_processed/healthy_control_group_resampled.csv", row.names = FALSE)
+write.csv(healthy_control_sample_resampled, "./data_processed/supplement/healthy_control_group_resampled.csv", row.names = FALSE)
 
 #2.2 Write the final merged HC + GAD sample as a csv file
-write.csv(GAD_HC_sample, "./data_processed/GAD_HC_resampled_merged_groups.csv", row.names = FALSE)
+write.csv(GAD_HC_sample, "./data_processed/supplement/GAD_HC_resampled_merged_groups.csv", row.names = FALSE)

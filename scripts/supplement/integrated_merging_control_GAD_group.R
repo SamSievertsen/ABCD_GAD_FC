@@ -8,10 +8,10 @@ options(digits = 8, scipen = 999)
 
 # Read in required data 
 # Healthy control subjects
-healthy_control_group <- read.csv("./data_processed/healty_control_group.csv")
+healthy_control_group <- read.csv("./data_processed/supplement/healty_control_group.csv")
 
 # GAD subjects
-GAD_group <- read.csv("./data_processed/GAD_group.csv")
+GAD_group <- read.csv("./data_processed/supplement/GAD_group.csv")
 
 # Resting state fMRI data
 rsfMRI_data <- read.csv("./data_raw/ABCD_rsfMRI_Data.csv")
@@ -180,4 +180,4 @@ merged_GAD_HC_sample_data_cleaned <- merged_GAD_HC_sample_data %>%
 write.csv(imaging_data_qcd, "./data_processed/rsfMRI_data_qcd_unsubset.csv", row.names = FALSE)
 
 #2. Write the merged GAD + HC group data as a csv for use in resampling 
-write.csv(merged_GAD_HC_sample_data_cleaned, "./data_processed/GAD_HC_subjects_not_resampled.csv", row.names = FALSE)
+write.csv(merged_GAD_HC_sample_data_cleaned, "./data_processed/supplement/GAD_HC_subjects_not_resampled.csv", row.names = FALSE)

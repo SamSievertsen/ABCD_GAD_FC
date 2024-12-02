@@ -6,7 +6,7 @@ options(digits = 8, scipen = 999)
 
 # Read in required data 
 # Comorbidity + non-resampled HC group data
-comorbidity_hc_group_not_resampled <- read.csv("./data_processed/supplemental_comorbidity_sample_hc_not_resampled.csv")
+comorbidity_hc_group_not_resampled <- read.csv("./data_processed/supplement/supplemental_comorbidity_sample_hc_not_resampled.csv")
 
 
 ## Data Wrangling + Prep for Resampling ##
@@ -403,11 +403,11 @@ if_else(final_HC_sample_unique == TRUE,
 ## Output ## 
 
 #1. Write the site + visit distribution comparison counts as a csv file
-write.csv(resampled_HC_site_visit_distribution_comparison, "./data_processed/supplementary_resampled_HC_site_visit_distribution_comparison.csv", row.names = FALSE)
+write.csv(resampled_HC_site_visit_distribution_comparison, "./data_processed/supplement/supplementary_resampled_HC_site_visit_distribution_comparison.csv", row.names = FALSE)
 
 #2. Write the final control and merged HC + comorbidity sample dataframes as csv files
 #2.1 Write the final HC sample as a csv file
-write.csv(healthy_control_sample_resampled, "./data_processed/supplementary_healthy_control_group_resampled.csv", row.names = FALSE)
+write.csv(healthy_control_sample_resampled, "./data_processed/supplement/supplementary_healthy_control_group_resampled.csv", row.names = FALSE)
 
 #2.2 Write the final merged HC + comorbidity sample as a csv file
-write.csv(comorbidity_HC_sample, "./data_processed/comorbidity_hc_resampled_merged_groups.csv", row.names = FALSE)
+write.csv(comorbidity_HC_sample, "./data_processed/supplement/comorbidity_hc_resampled_merged_groups.csv", row.names = FALSE)

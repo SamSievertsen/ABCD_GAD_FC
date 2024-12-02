@@ -20,11 +20,11 @@ ABCD_KSADS_release_5.1_youth_report <- read.csv("./data_raw/mh_y_ksads_ss.csv")
 cleaned_qcd_imaging_data <- read.csv("./data_processed/rsfMRI_data_qcd_unsubset.csv")
 
 # Diagnosis group labels
-GAD_HC_group <- read.csv("./data_processed/GAD_HC_resampled_merged_groups.csv") %>% 
+GAD_HC_group <- read.csv("./data_processed/supplement/GAD_HC_resampled_merged_groups.csv") %>% 
   dplyr::select(c(src_subject_id, eventname, group))
 
 # Original HC group (non-resampled)
-original_HC_subjects_not_resampled <- read.csv("./data_processed/supplementary_healty_control_group.csv")
+original_HC_subjects_not_resampled <- read.csv("./data_processed/supplement/supplementary_healty_control_group.csv")
 
 # Site data
 site_data <- read.csv("./data_raw/ABCD_sitename_data.csv") %>% 
@@ -377,7 +377,7 @@ supplemental_comorbidity_analysis_sample_not_resampled <- supplemental_comorbidi
 ## Output ## 
 
 #1. Write the comorbidity sample + non-resampled HC subject dataframe as a csv
-write.csv(supplemental_comorbidity_analysis_sample_not_resampled, "./data_processed/supplemental_comorbidity_sample_hc_not_resampled.csv", row.names = FALSE)
+write.csv(supplemental_comorbidity_analysis_sample_not_resampled, "./data_processed/supplement/supplemental_comorbidity_sample_hc_not_resampled.csv", row.names = FALSE)
 
 #2. Write the final comorbidity sample (standalone) as a csv
-write.csv(supplementary_clinical_groups, "./data_processed/supplemental_comorbidity_group.csv", row.names = FALSE)
+write.csv(supplementary_clinical_groups, "./data_processed/supplement/supplemental_comorbidity_group.csv", row.names = FALSE)

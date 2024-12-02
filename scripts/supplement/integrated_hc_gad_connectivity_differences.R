@@ -17,7 +17,7 @@ options(digits = 8, scipen = 999)
 
 # Read in required data 
 # Merged GAD + HC Sample
-GAD_HC_sample <- read.csv("./data_processed/GAD_HC_resampled_merged_groups.csv")
+GAD_HC_sample <- read.csv("./data_processed/supplement/GAD_HC_resampled_merged_groups.csv")
 
 # Family ID Data
 family_ID_data <-  read.delim("./data_raw/acspsw03.txt") %>% 

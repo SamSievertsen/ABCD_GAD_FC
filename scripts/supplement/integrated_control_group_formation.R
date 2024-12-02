@@ -68,6 +68,6 @@ healthy_control_group <- healthy_control_group %>%
          subgroup = rep("HC"))
 
 #2. Write the dataframe as a csv 
-write.csv(healthy_control_group, "./data_processed/healty_control_group.csv", row.names = FALSE)
+write.csv(healthy_control_group, "./data_processed/supplement/healty_control_group.csv", row.names = FALSE)
 
 

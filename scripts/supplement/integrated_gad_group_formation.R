@@ -94,4 +94,4 @@ GAD_group_data <- GAD_group_data %>%
   dplyr::select(c(src_subject_id, eventname, group, GAD_timepoint, analysis_group, subgroup))
 
 #2. Write the GAD group data as a csv
-write.csv(GAD_group_data, "./data_processed/GAD_group.csv", row.names = FALSE)
+write.csv(GAD_group_data, "./data_processed/supplement/GAD_group.csv", row.names = FALSE)

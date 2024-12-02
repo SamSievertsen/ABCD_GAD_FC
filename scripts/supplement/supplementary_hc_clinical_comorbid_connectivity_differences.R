@@ -18,7 +18,7 @@ options(digits = 8, scipen = 999)
 
 # Read in required data 
 # Merged Clinical Comorbidity + HC Sample
-comorbid_clinical_HC_sample <- read.csv("./data_processed/comorbidity_hc_resampled_merged_groups.csv")
+comorbid_clinical_HC_sample <- read.csv("./data_processed/supplement/comorbidity_hc_resampled_merged_groups.csv")
 
 # Family ID Data
 family_ID_data <-  read.delim("./data_raw/acspsw03.txt") %>% 
