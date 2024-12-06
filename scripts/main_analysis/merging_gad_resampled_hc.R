@@ -8,7 +8,7 @@ library(stringr)
 options(digits = 9)
 
 # Read in the control sample data
-control_sample <- read.csv("C:/Users/Sam Sievertsen/Desktop/SamResearch/ABCD_Data/final_analysis2_control_sample.csv")
+control_sample <- read.csv("./data_processed/main_analysis/resampled_hc_sample.csv")
 
 # Read in the GAD group data
 GAD_sample <- read.csv("./data_processed/main_analysis/gad_group.csv")
