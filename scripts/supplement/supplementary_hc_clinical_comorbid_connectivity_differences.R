@@ -516,6 +516,7 @@ for (dv in post_hoc_dependent_variables) {
   
 }
 
+
 #2. Create violin boxplots for each of the dv of interest (nominally significant associations)
 #2.1 Combine all dependent variables into a single dataframe for plotting
 comorbid_clinical_HC_group_connectivity_plot_data <- comorbid_clinical_HC_group_connectivity_analysis_data %>%
@@ -570,83 +571,7 @@ comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group[comorbid_cli
 comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group <- as.factor(comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group)
 comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group <- relevel(comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group, ref = "HC")
 
-#2.41 Extended significance annotations for multiple facets
-significance_data <- data.frame(
-  Dependent_Variable_Label = c(
-    # Within-VAN
-    "Within-VAN", "Within-VAN", "Within-VAN", "Within-VAN",
-    # CON - Left Putamen
-    "CON - Left Putamen", "CON - Left Putamen", "CON - Left Putamen",
-    # DMN - Right Caudate
-    "DMN - Right Caudate", "DMN - Right Caudate", "DMN - Right Caudate",
-    # DMN - Right Accumbens
-    "DMN - Right Accumbens", "DMN - Right Accumbens", "DMN - Right Accumbens",
-    "DMN - Right Accumbens", "DMN - Right Accumbens", "DMN - Right Accumbens",
-    "DMN - Right Accumbens", "DMN - Right Accumbens",
-    # CON - FPN
-    "CON - FPN", "CON - FPN", "CON - FPN"
-  ),
-  x_start = c(
-    # Within-VAN
-    "GAD Only", "GAD Only", "GAD + Any Comorbidity", "GAD + Any Comorbidity",
-    # CON - Left Putamen
-    "HC", "GAD Only", "MDD no GAD",
-    # DMN - Right Caudate
-    "HC", "GAD Only", "GAD + Any Comorbidity",
-    # DMN - Right Accumbens
-    "HC", "HC", "GAD Only", "GAD Only", "GAD + Any Comorbidity",
-    "GAD + Any Comorbidity", "MDD no GAD", "Separation Anx no GAD",
-    # CON - FPN
-    "HC", "HC", "MDD no GAD"
-  ),
-  x_end = c(
-    # Within-VAN
-    "MDD no GAD", "Separation Anx no GAD", "MDD no GAD", "Separation Anx no GAD",
-    # CON - Left Putamen
-    "Social Anx no GAD", "MDD no GAD", "Social Anx no GAD",
-    # DMN - Right Caudate
-    "MDD no GAD", "MDD no GAD", "MDD no GAD",
-    # DMN - Right Accumbens
-    "MDD no GAD", "Separation Anx no GAD", "MDD no GAD", "Separation Anx no GAD",
-    "MDD no GAD", "Separation Anx no GAD", "Social Anx no GAD", "Social Anx no GAD",
-    # CON - FPN
-    "MDD no GAD", "Social Anx no GAD", "Social Anx no GAD"
-  ),
-  y_position = c(
-    # Within-VAN
-    0.4, 0.45, 0.5, 0.55,
-    # CON - Left Putamen
-    0.55, 0.6, 0.65,
-    # DMN - Right Caudate
-    0.4, 0.45, 0.5,
-    # DMN - Right Accumbens
-    0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8,
-    # CON - FPN
-    0.4, 0.45, 0.5
-  ),
-  label = ""
-)
-
-#2.42 Calculate dynamic y_position for significance bars with offsets
-max_values <- comorbid_clinical_HC_group_connectivity_plot_data %>% 
-  group_by(Dependent_Variable_Label) %>% 
-  summarise(max_value = max(Value, na.rm = TRUE), .groups = "drop")
-
-#2.43 Adjust significance data for offsets in the DMN - Right Accumbens & CON - Left Putamen
-significance_data <- significance_data %>% 
-  left_join(max_values, by = "Dependent_Variable_Label") %>% 
-  ungroup() %>% 
-  group_by(Dependent_Variable_Label) %>% 
-  mutate(
-    # For specific problematic groups, dynamically offset significance bars
-    y_position = pmin(
-      max_value + 0.06 + (row_number() - 1) * 0.08, # Increment offsets for visual clarity
-      0.8  # Constrain bars within visualization range
-    )
-  )
-
-#2.51 Create the faceted violin plots
-# Create the faceted violin plots without significance bars
+#2.4 Create the faceted violin plots
 facet_violin_plot <- ggplot(comorbid_clinical_HC_group_connectivity_plot_data,   
                             aes(x = comorbidity_group, y = Value, fill = comorbidity_group)) +
   geom_violin(trim = FALSE, alpha = 0.6, color = "black") +
@@ -656,29 +581,17 @@ facet_violin_plot <- ggplot(comorbid_clinical_HC_group_connectivity_plot_data,
        y = "Connectivity Value") +
   theme_minimal() +
   theme(
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-    panel.grid = element_blank(),
-    axis.line = element_line(color = "black", linewidth = 1, linetype = "solid"),
-    axis.title.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12),
-    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
-    strip.text = element_text(size = 12, face = "bold"),
-    legend.position = "none"
-  ) +
-  scale_y_continuous(limits = c(-0.6, 0.8))
-
-
-#2.52 Dynamically add significance bars for each facet group
-for (i in unique(significance_data$Dependent_Variable_Label)) {
-  current_significance <- subset(significance_data, Dependent_Variable_Label == i)
-  facet_violin_plot <- facet_violin_plot +
-    geom_signif(
-      data = current_significance,
-      aes(xmin = x_start, xmax = x_end, annotations = label, y_position = y_position),
-      manual = TRUE,
-      inherit.aes = FALSE
-    )
-}
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(), # Remove the full border
+    axis.line.x = element_line(color = "black", linewidth = 1), # Add x-axis line
+    axis.line.y = element_line(color = "black", linewidth = 1), # Add y-axis line
+    axis.title.x = element_text(size = 10, face = "bold"),
+    axis.title.y = element_text(size = 10, face = "bold"),
+    axis.text.x = element_text(size = 6, angle = 45, hjust = 1),
+    strip.text = element_text(size = 10, face = "bold"),
+    legend.position = "none")
 
 
 ## Output ##
@@ -690,3 +603,4 @@ write.csv(clinical_comorbid_HC_connectivity_analysis_results_merged_adjusted_p_v
 write.csv(clinical_comorbid_HC_sample_characteristics, "./results/clinical_comorbid_HC_connectivity_grouped_demographic_stats.csv", row.names = FALSE)
 
 #3. Save the nominally significant grouped connectivity plot as a PDF
+ggsave("./results/clinical_comorbid_HC_connectivity_plot.png", plot = facet_violin_plot, dpi = 720, width = 10, height = 6, bg = "white")
