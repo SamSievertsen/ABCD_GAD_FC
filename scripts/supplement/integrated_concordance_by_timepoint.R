@@ -28,7 +28,7 @@ ABCD_BPM_data <- ABCD_BPM_data[-1,]
 cleaned_qcd_imaging_data <- read.csv("./data_processed/rsfMRI_data_qcd_unsubset.csv")
 
 # Diagnosis group labels
-GAD_HC_group <- read.csv("./data_processed/GAD_HC_resampled_merged_groups.csv") %>% 
+GAD_HC_group <- read.csv("./data_processed/supplement/GAD_HC_resampled_merged_groups.csv") %>% 
   dplyr::select(c(src_subject_id, eventname, group))
 
 
@@ -59,26 +59,28 @@ ABCD_KSADS_release_5.1_GAD_data_for_merging <- left_join(ABCD_KSADS_release_5.1_
 ABCD_KSADS_release_5.1_GAD_data_for_merging <- ABCD_KSADS_release_5.1_GAD_data_for_merging %>%
   mutate(
     GAD = if_else(
-      replace_na(ksads_10_869_p, 0) == 1 | replace_na(ksads_10_869_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_10_869_p, 0) == 1 | tidyr::replace_na(ksads_10_869_t, 0) == 1, 1, 0
     ),
     GAD_Source = case_when(
-      replace_na(ksads_10_869_p, 0) == 1 & replace_na(ksads_10_869_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_10_869_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_10_869_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_10_869_p, 0) == 1 & tidyr::replace_na(ksads_10_869_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_10_869_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_10_869_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
-    ))
+    )
+  )
+
 
 #1.4 Create comorbidities of interest
 #1.41 Social Anxiety Disorder
 ABCD_KSADS_release_5.1_GAD_data_for_merging <- ABCD_KSADS_release_5.1_GAD_data_for_merging %>%
   mutate(
     Social_Anxiety_Disorder = if_else(
-      replace_na(ksads_8_863_p, 0) == 1 | replace_na(ksads_8_863_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_8_863_p, 0) == 1 | tidyr::replace_na(ksads_8_863_t, 0) == 1, 1, 0
     ),
     Social_Anxiety_Disorder_Source = case_when(
-      replace_na(ksads_8_863_p, 0) == 1 & replace_na(ksads_8_863_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_8_863_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_8_863_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_8_863_p, 0) == 1 & tidyr::replace_na(ksads_8_863_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_8_863_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_8_863_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
     ))
 
@@ -86,12 +88,12 @@ ABCD_KSADS_release_5.1_GAD_data_for_merging <- ABCD_KSADS_release_5.1_GAD_data_f
 ABCD_KSADS_release_5.1_GAD_data_for_merging <- ABCD_KSADS_release_5.1_GAD_data_for_merging %>%
   mutate(
     Separation_Anxiety_Disorder = if_else(
-      replace_na(ksads_7_861_p, 0) == 1 | replace_na(ksads_7_861_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_7_861_p, 0) == 1 | tidyr::replace_na(ksads_7_861_t, 0) == 1, 1, 0
     ),
     Separation_Anxiety_Disorder_Source = case_when(
-      replace_na(ksads_7_861_p, 0) == 1 & replace_na(ksads_7_861_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_7_861_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_7_861_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_7_861_p, 0) == 1 & tidyr::replace_na(ksads_7_861_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_7_861_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_7_861_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
     ))
 
@@ -99,12 +101,12 @@ ABCD_KSADS_release_5.1_GAD_data_for_merging <- ABCD_KSADS_release_5.1_GAD_data_f
 ABCD_KSADS_release_5.1_GAD_data_for_merging <- ABCD_KSADS_release_5.1_GAD_data_for_merging %>%
   mutate(
     MDD = if_else(
-      replace_na(ksads_1_840_p, 0) == 1 | replace_na(ksads_1_840_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_1_840_p, 0) == 1 | tidyr::replace_na(ksads_1_840_t, 0) == 1, 1, 0
     ),
     MDD_Source = case_when(
-      replace_na(ksads_1_840_p, 0) == 1 & replace_na(ksads_1_840_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_1_840_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_1_840_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_1_840_p, 0) == 1 & tidyr::replace_na(ksads_1_840_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_1_840_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_1_840_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
     ))
 
@@ -459,4 +461,12 @@ Divergence_Concordance_Long <- Divergence_Concordance_Long %>%
   )
 
 
+## Output ## 
 
+#1. Write the GAD diagnosis reporter data as a csv to be used in other downstream analyses
+#1.1 Subset the data of interest
+integrated_gad_reporter_data <- ABCD_KSADS_release_5.1_GAD_data_for_merging %>% 
+  dplyr::select(c(src_subject_id, eventname, GAD_Source))
+  
+#1.2 Write the GAD reporter data as a csv file
+write.csv(integrated_gad_reporter_data, "./data_processed/supplement/integrated_gad_reporter_data.csv", row.names = FALSE)

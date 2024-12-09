@@ -476,8 +476,11 @@ post_hoc_dependent_variables <- c("rsfmri_c_ngd_vta_ngd_vta",
                                   "rsfmri_cor_ngd_sa_scs_ptlh",
                                   "rsfmri_c_ngd_dla_ngd_vta")
 
-#1.2 Create a dataframe to store results
-emmeans_results <- list()
+#1.21 Create a list to store FDR corrected results
+emmeans_fdr_corrected_results <- list()
+
+#1.22 Create a list to store non adjusted (p value) results
+emmeans_uncorrected_results <- list()
 
 #1.3 Iterate through each dependent variable
 for (dv in post_hoc_dependent_variables) {
@@ -491,14 +494,14 @@ for (dv in post_hoc_dependent_variables) {
     data = comorbid_clinical_HC_group_connectivity_analysis_data
   )
   
-  #1.32 Compute estimated marginal means for the comorbidity group
+  #1.32 Compute FDR corrected estimated marginal means for the comorbidity group
   emm <- emmeans(post_hoc_model, ~ comorbidity_group)
   
   #1.33 Perform pairwise contrasts
   pairwise_contrasts <- contrast(emm, method = "pairwise", adjust = "fdr")
   
   #1.34 Store results
-  emmeans_results[[dv]] <- list(
+  emmeans_fdr_corrected_results[[dv]] <- list(
     "EMMs" = emm,
     "Pairwise_Contrasts" = pairwise_contrasts
   )
@@ -516,6 +519,42 @@ for (dv in post_hoc_dependent_variables) {
   
 }
 
+#1.4 Iterate through each dependent variable
+for (dv in post_hoc_dependent_variables) {
+  
+  #1.41 Fit the model for the current dependent variable
+  post_hoc_model <- lmerTest::lmer(
+    comorbid_clinical_HC_group_connectivity_analysis_data[, dv] ~ 
+      comorbidity_group + rsfmri_c_ngd_meanmotion + sex + eventname + 
+      (1 | site_name) + (1 | rel_family_id), 
+    na.action = na.omit, 
+    data = comorbid_clinical_HC_group_connectivity_analysis_data
+  )
+  
+  #1.42 Compute uncorrected estimated marginal means for the comorbidity group
+  emm <- emmeans(post_hoc_model, ~ comorbidity_group)
+  
+  #1.43 Perform pairwise contrasts
+  pairwise_contrasts <- contrast(emm, method = "pairwise", adjust = "none")
+  
+  #1.44 Store results
+  emmeans_uncorrected_results[[dv]] <- list(
+    "EMMs" = emm,
+    "Pairwise_Contrasts" = pairwise_contrasts
+  )
+  
+  #1.35 Print summary of results for the current DV
+  print(paste("Results for:", dv))
+  
+  #1.36 Print the estimated marginal means
+  print("Estimated Marginal Means:")
+  print(summary(emm))
+  
+  #1.37 Print the pairwise contrasts
+  print("Pairwise Contrasts:")
+  print(summary(pairwise_contrasts))
+  
+}
 
 #2. Create violin boxplots for each of the dv of interest (nominally significant associations)
 #2.1 Combine all dependent variables into a single dataframe for plotting
