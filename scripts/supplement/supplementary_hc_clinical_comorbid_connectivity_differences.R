@@ -543,14 +543,14 @@ for (dv in post_hoc_dependent_variables) {
     "Pairwise_Contrasts" = pairwise_contrasts
   )
   
-  #1.35 Print summary of results for the current DV
+  #1.45 Print summary of results for the current DV
   print(paste("Results for:", dv))
   
-  #1.36 Print the estimated marginal means
+  #1.46 Print the estimated marginal means
   print("Estimated Marginal Means:")
   print(summary(emm))
   
-  #1.37 Print the pairwise contrasts
+  #1.47 Print the pairwise contrasts
   print("Pairwise Contrasts:")
   print(summary(pairwise_contrasts))
   
