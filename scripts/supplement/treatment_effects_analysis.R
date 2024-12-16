@@ -499,7 +499,7 @@ within_VAN_repeated_measures_4_group_ANCOVA <- car::Anova(within_VAN_repeated_me
 
 #6.23 4 group model post hoc 
 #6.231 Estimated marginal means within groups over time points
-within_VAN_repeated_measures_4_group_EMM <- emmeans(within_VAN_repeated_measures_4_group_model, pairwise ~ eventname | group | treatment_bw_baseline_2y)
+within_VAN_repeated_measures_4_group_EMM <- emmeans(within_VAN_repeated_measures_4_group_model, pairwise ~ eventname | group | treatment_status)
 
 #6.232 Generate the emmeans contrast for comparing slopes between groups over time (AKA relationship between estimated means between timepoints)
 within_VAN_repeated_measures_4_group_posthoc_contrasts <- contrast(within_VAN_repeated_measures_4_group_EMM[[1]], interaction = c("poly", "pairwise"), by = NULL, adjust = "none")
