@@ -622,9 +622,9 @@ facet_violin_plot <- ggplot(comorbid_clinical_HC_group_connectivity_plot_data,
     axis.title.y = element_text(size = 10, face = "bold"),
     axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
     strip.text = element_text(size = 10, face = "bold", 
-                              margin = margin(b = 30)), 
+                              margin = margin(b = 40)), 
     legend.position = "none",
-    panel.spacing.y = unit(1, "lines"))
+    panel.spacing.y = unit(4, "lines"))
 
 
 ## Output ##
