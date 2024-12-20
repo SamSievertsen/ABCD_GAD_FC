@@ -289,13 +289,13 @@ ggplot(Within_VAN_emm_plot_data, aes(x = eventname, y = emmean, group = group, c
   geom_line(alpha = 0.5) +
   geom_point(size = 2, aes(fill = group)) +
   geom_ribbon(aes(ymin = emmean - SE, ymax = emmean + SE), alpha = 0.07, linetype = "blank") +
-  labs(x = "Timepoint", y = "Within-VAN FC") +
+  labs(x = "Timepoint", y = "Within-VAN Connectivity") +
   scale_color_manual(name = "Diagnostic Group", values = c("HC" = "#218380", "Continuous GAD" = "#D81159", "GAD Converter" = "#FDB833", "GAD Remitter" = "#5390D9"), labels = group_labels) +
   scale_fill_manual(name = "Diagnostic Group", values = c("HC" = "#218380", "Continuous GAD" = "#D81159", "GAD Converter" = "#FDB833", "GAD Remitter" = "#5390D9"), labels = group_labels) +
   scale_x_discrete(labels = c("baseline_year_1_arm_1" = "Baseline", "2_year_follow_up_y_arm_1" = "2 Year Followup"), expand = c(0.01, 0.01)) +
   scale_y_continuous(expand = c(0, 0), limits = c(0.19, 0.26), breaks = seq(0.18, 0.28, by = 0.02)) +
   theme_minimal() +
-  annotate(family = ) + 
+  annotate(geom = "text", family = "Arial") + 
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.line = element_line(color = "black"),
@@ -304,8 +304,9 @@ ggplot(Within_VAN_emm_plot_data, aes(x = eventname, y = emmean, group = group, c
         legend.justification = c(0, 0),
         plot.margin = unit(c(1, 2, 1, 1), "lines"))
 
-#1.1536 Save the plot as a high-resolution image (PNG format)
-ggsave(".results/Within_VAN_MLM_Plot.png", dpi = 720, width = 8, height = 6, bg = "white")
+#1.1536 Save the plot as a high-resolution image (PNG + PDF format)
+ggsave("./results/Within_VAN_MLM_Plot.png", dpi = 720, width = 8, height = 6, bg = "white")
+ggsave("./results/Within_VAN_MLM_Plot.pdf", dpi = 720, width = 8, height = 6, bg = "white", device = "pdf")
 
 
 #1.141 DFN LH Putamen Model
