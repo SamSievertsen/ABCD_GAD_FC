@@ -6,8 +6,12 @@ library(tidyr)
 
 
 ## Set Up ##
-# Load in the R data from all ABCD analyses thus far
-load("/Users/samsievertsen/Desktop/SamResearch/ABCD_Data/ABCD_analysis_data_010224.RData")
+
+# Read in the ksads-comp data without the desc row data 
+KSADS_Data_no_desc <- read.csv("./data_raw/ksads_raw_data.csv") 
+KSADS_Data_no_desc <- KSADS_Data_no_desc[-1,]
+
+# Read in the GAD vs HC grouped connectivity analysis data
 site_visit_analysis_data <- read.csv("/Users/samsievertsen/Desktop/SamResearch/ABCD_Data/site_visit_analysis_data.csv")
 
 # Read in the release 5.1 data
@@ -38,6 +42,7 @@ ABCD_4.0_Youth_Report_KSADS <- ABCD_4.0_Youth_Report_KSADS %>%
 #1.21 Retain only baseline and 2 year follow up
 ABCD_KSADS_5.1_release_youth <- ABCD_KSADS_5.1_release_youth %>% 
   filter(eventname == "baseline_year_1_arm_1" | eventname == "2_year_follow_up_y_arm_1")
+
 #1.22 Only retain columns of interest, AKA required demo data and MDD diagnoses
 ABCD_KSADS_5.1_release_youth <- ABCD_KSADS_5.1_release_youth %>% 
   dplyr::select(c(src_subject_id, eventname, ksads_1_840_t))

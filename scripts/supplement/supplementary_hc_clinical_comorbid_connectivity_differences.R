@@ -56,13 +56,17 @@ comorbid_clinical_HC_sample_for_merging <- comorbid_clinical_HC_sample %>%
 comorbid_clinical_HC_group_connectivity_analysis_data <- left_join(comorbid_clinical_HC_sample_for_merging, cleaned_qcd_rsfMRI_data)
 
 #1.4 Prep data for analyses
-#1.41 Convert relevant columns to numeric type
-comorbid_clinical_HC_group_connectivity_analysis_data <- mutate_at(comorbid_clinical_HC_group_connectivity_analysis_data, vars(9:103), as.numeric)
+#1.41 Retain only columns of interest to the analysis (a-priori regions from the original GAD vs HC analysis)
+comorbid_clinical_HC_group_connectivity_analysis_data <- comorbid_clinical_HC_group_connectivity_analysis_data %>% 
+  dplyr::select(c(src_subject_id, rel_family_id, interview_age, sex, site_name, eventname, broad_clinical_group, comorbidity_group, rsfmri_c_ngd_meanmotion, rsfmri_c_ngd_vta_ngd_vta, rsfmri_cor_ngd_cerc_scs_aglh, rsfmri_cor_ngd_cerc_scs_cdelh, rsfmri_cor_ngd_df_scs_ptlh, rsfmri_cor_ngd_sa_scs_ptlh))
 
-#1.42 Convert relevant columns to factor type
+#1.42 Convert relevant columns to numeric type
+comorbid_clinical_HC_group_connectivity_analysis_data <- mutate_at(comorbid_clinical_HC_group_connectivity_analysis_data, vars(9:14), as.numeric)
+
+#1.43 Convert relevant columns to factor type
 comorbid_clinical_HC_group_connectivity_analysis_data <- mutate_at(comorbid_clinical_HC_group_connectivity_analysis_data, vars(c(rel_family_id, sex, site_name, eventname, broad_clinical_group, comorbidity_group)), as.factor)
 
-#1.43 Set the reference level of the group variable for analysis purposes
+#1.44 Set the reference level of the group variable for analysis purposes
 comorbid_clinical_HC_group_connectivity_analysis_data$comorbidity_group <- relevel(comorbid_clinical_HC_group_connectivity_analysis_data$comorbidity_group, ref = "HC")
 
 
@@ -229,7 +233,7 @@ demographic_race_ethnicity_merged_data$cbcl_scr_dsm5_anxdisord_t <- as.numeric(d
 
 #1. Analyze connectivity differences in metrics of interest between the current Clinical Comorbid and HC groups 
 #1.1 Establish the range of the dependent variables 
-clinical_comorbid_HC_connectivity_analysis_dp_col_range <- 10:103
+clinical_comorbid_HC_connectivity_analysis_dp_col_range <- 10:14
 
 #1.2 Initialize an empty dataframe to store analysis values
 clinical_comorbid_HC_connectivity_analysis_raw_results <- data.frame(
@@ -462,19 +466,13 @@ clinical_comorbid_HC_connectivity_analysis_results_merged_adjusted_p_values_pivo
 
 ## Post-Hoc Contrasts ##
 
-#1. Run pairwise EMM contrasts on each level of the comorbidity_group variable for nominally significant associations
+#1. Run pairwise EMM contrasts on each level of the comorbidity_group variable for significant associations
 #1.1 Create a list of relevant dependent variables
-post_hoc_dependent_variables <- c("rsfmri_c_ngd_vta_ngd_vta", 
-                                  "rsfmri_cor_ngd_cerc_scs_ptlh",
-                                  "rsfmri_cor_ngd_df_scs_cderh",
-                                  "rsfmri_cor_ngd_df_scs_aarh",
-                                  "rsfmri_c_ngd_cgc_ngd_fo",
+post_hoc_dependent_variables <- c("rsfmri_c_ngd_vta_ngd_vta",
                                   "rsfmri_cor_ngd_cerc_scs_aglh",
-                                  "rsfmri_cor_ngd_cerc_scs_hprh",
-                                  "rsfmri_cor_ngd_vta_scs_aalh",
                                   "rsfmri_cor_ngd_cerc_scs_cdelh",
-                                  "rsfmri_cor_ngd_sa_scs_ptlh",
-                                  "rsfmri_c_ngd_dla_ngd_vta")
+                                  "rsfmri_cor_ngd_df_scs_ptlh",
+                                  "rsfmri_cor_ngd_sa_scs_ptlh")
 
 #1.21 Create a list to store FDR corrected results
 emmeans_fdr_corrected_results <- list()
@@ -568,16 +566,10 @@ comorbid_clinical_HC_group_connectivity_plot_data <- comorbid_clinical_HC_group_
 #2.21 Custom titles for dependent variables
 comorbid_clinical_HC_group_plot_titles <- c(
   "rsfmri_c_ngd_vta_ngd_vta" = "Within-VAN",
-  "rsfmri_cor_ngd_cerc_scs_ptlh" = "CON - Left Putamen",
-  "rsfmri_cor_ngd_df_scs_cderh" = "DMN - Right Caudate",
-  "rsfmri_cor_ngd_df_scs_aarh" = "DMN - Right Accumbens",
-  "rsfmri_c_ngd_cgc_ngd_fo" = "CON - FPN",
   "rsfmri_cor_ngd_cerc_scs_aglh" = "CON - Left Amygdala",
-  "rsfmri_cor_ngd_cerc_scs_hprh" = "CON - Right Hippocampus",
-  "rsfmri_cor_ngd_vta_scs_aalh" = "VAN - Left Accumbens",
   "rsfmri_cor_ngd_cerc_scs_cdelh" = "CON - Left Caudate",
-  "rsfmri_cor_ngd_sa_scs_ptlh" = "SN - Left Putamen",
-  "rsfmri_c_ngd_dla_ngd_vta" = "DAN - VAN")
+  "rsfmri_cor_ngd_df_scs_ptlh" = "DMN - Left Putamen",
+  "rsfmri_cor_ngd_sa_scs_ptlh" = "SN - Left Putamen")
 
 #2.22 Add a column for readable variable names
 comorbid_clinical_HC_group_connectivity_plot_data <- comorbid_clinical_HC_group_connectivity_plot_data %>%
@@ -611,7 +603,7 @@ comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group <- as.factor
 comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group <- relevel(comorbid_clinical_HC_group_connectivity_plot_data$comorbidity_group, ref = "HC")
 
 #2.4 Create the faceted violin plots
-facet_violin_plot <- ggplot(comorbid_clinical_HC_group_connectivity_plot_data,   
+facet_violin_plot <- ggplot(comorbid_clinical_HC_group_connectivity_plot_data,    
                             aes(x = comorbidity_group, y = Value, fill = comorbidity_group)) +
   geom_violin(trim = FALSE, alpha = 0.6, color = "black") +
   geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.9) +
@@ -623,14 +615,16 @@ facet_violin_plot <- ggplot(comorbid_clinical_HC_group_connectivity_plot_data,
     plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    panel.border = element_blank(), # Remove the full border
-    axis.line.x = element_line(color = "black", linewidth = 1), # Add x-axis line
-    axis.line.y = element_line(color = "black", linewidth = 1), # Add y-axis line
+    panel.border = element_blank(), 
+    axis.line.x = element_line(color = "black", linewidth = 1), 
+    axis.line.y = element_line(color = "black", linewidth = 1), 
     axis.title.x = element_text(size = 10, face = "bold"),
     axis.title.y = element_text(size = 10, face = "bold"),
-    axis.text.x = element_text(size = 6, angle = 45, hjust = 1),
-    strip.text = element_text(size = 10, face = "bold"),
-    legend.position = "none")
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    strip.text = element_text(size = 10, face = "bold", 
+                              margin = margin(b = 30)), 
+    legend.position = "none",
+    panel.spacing.y = unit(1, "lines"))
 
 
 ## Output ##

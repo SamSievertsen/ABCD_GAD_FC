@@ -471,14 +471,13 @@ integrated_GAD_HC_sample_characteristics <- left_join(grouped_integrated_GAD_HC_
 
 ## Post-Hoc Contrasts ##
 
-#1. Create violin boxplots for each of the dv of interest (nominally significant associations)
+#1. Create violin boxplots for each of the dv of interest (GAD associated connectivity metrics from the main GAD cs HC analysis)
 #1.1 Create a list of relevant dependent variables
-post_hoc_dependent_variables <- c("rsfmri_cor_ngd_sa_scs_ptlh",
-                                  "rsfmri_c_ngd_cgc_ngd_vta",
-                                  "rsfmri_cor_ngd_dsa_scs_agrh",
-                                  "rsfmri_cor_ngd_cerc_scs_ptlh",
+post_hoc_dependent_variables <- c("rsfmri_c_ngd_vta_ngd_vta",
+                                  "rsfmri_cor_ngd_cerc_scs_aglh",
                                   "rsfmri_cor_ngd_cerc_scs_cdelh",
-                                  "rsfmri_c_ngd_vta_ngd_vta")
+                                  "rsfmri_cor_ngd_df_scs_ptlh",
+                                  "rsfmri_cor_ngd_sa_scs_ptlh")
 
 #1.2 Combine all dependent variables into a single dataframe for plotting
 GAD_HC_group_connectivity_plot_data <- GAD_HC_group_connectivity_analysis_data %>%
@@ -490,12 +489,11 @@ GAD_HC_group_connectivity_plot_data <- GAD_HC_group_connectivity_analysis_data %
 
 #1.31 Custom titles for dependent variables
 GAD_HC_group_connectivity_plot_titles <- c(
-  "rsfmri_cor_ngd_sa_scs_ptlh" = "SN - Left Putamen",
-  "rsfmri_c_ngd_cgc_ngd_vta" = "CON- VAN",
-  "rsfmri_cor_ngd_dsa_scs_agrh" = "DAN - Right Amygdala",
-  "rsfmri_cor_ngd_cerc_scs_ptlh" = "CON- Left Putamen",
+  "rsfmri_c_ngd_vta_ngd_vta" = "Within-VAN",
+  "rsfmri_cor_ngd_cerc_scs_aglh" = "CON - Left Amygdala",
   "rsfmri_cor_ngd_cerc_scs_cdelh" = "CON - Left Caudate",
-  "rsfmri_c_ngd_vta_ngd_vta" = "Within-VAN")
+  "rsfmri_cor_ngd_df_scs_ptlh" = "DMN - Left Putamen",
+  "rsfmri_cor_ngd_sa_scs_ptlh" = "SN - Left Putamen")
 
 #1.32 Add a column for readable variable names
 GAD_HC_group_connectivity_plot_data <- GAD_HC_group_connectivity_plot_data %>%
@@ -510,7 +508,7 @@ facet_violin_plot <- ggplot(GAD_HC_group_connectivity_plot_data,
   labs(x = "Diagnostic Group", 
        y = "Connectivity Value") +
   theme_minimal() +
-  scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) + 
+  scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) +
   theme(
     plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
     panel.grid.major = element_blank(),
@@ -521,8 +519,18 @@ facet_violin_plot <- ggplot(GAD_HC_group_connectivity_plot_data,
     axis.title.x = element_text(size = 12, face = "bold"),
     axis.title.y = element_text(size = 12, face = "bold"),
     axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
-    strip.text = element_text(size = 12, face = "bold"),
-    legend.position = "none")
+    strip.text = element_text(size = 10, face = "bold", 
+                              margin = margin(b = 20)), 
+    legend.position = "none",
+    panel.spacing.y = unit(1, "lines")
+  ) +
+  # Add significance bars for specific facets
+  geom_signif(data = GAD_HC_group_connectivity_plot_data %>% 
+                filter(Dependent_Variable_Label %in% c("SN - Left Putamen", 
+                                                       "Within-VAN", 
+                                                       "CON - Left Caudate")), 
+              aes(xmin = 1, xmax = 2, annotations = "*", y_position = max(Value) + 0.1), 
+              manual = TRUE)
 
 
 ## Output ##

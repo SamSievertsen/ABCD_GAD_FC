@@ -58,26 +58,26 @@ ABCD_KSADS_release_5.1_data_for_merging <- left_join(ABCD_KSADS_release_5.1_data
 ABCD_KSADS_release_5.1_data_for_merging <- ABCD_KSADS_release_5.1_data_for_merging %>%
   mutate(
     GAD = if_else(
-      replace_na(ksads_10_869_p, 0) == 1 | replace_na(ksads_10_869_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_10_869_p, 0) == 1 | tidyr::replace_na(ksads_10_869_t, 0) == 1, 1, 0
     ),
     GAD_Source = case_when(
-      replace_na(ksads_10_869_p, 0) == 1 & replace_na(ksads_10_869_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_10_869_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_10_869_t, 0) == 1 ~ "Youth",
-      TRUE ~ "None"
-    ))
+      tidyr::replace_na(ksads_10_869_p, 0) == 1 & tidyr::replace_na(ksads_10_869_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_10_869_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_10_869_t, 0) == 1 ~ "Youth",
+      TRUE ~ "None"))
+
 
 #1.4 Create comorbidities of interest
 #1.41 Social Anxiety Disorder
 ABCD_KSADS_release_5.1_data_for_merging <- ABCD_KSADS_release_5.1_data_for_merging %>%
   mutate(
     Social_Anxiety_Disorder = if_else(
-      replace_na(ksads_8_863_p, 0) == 1 | replace_na(ksads_8_863_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_8_863_p, 0) == 1 | tidyr::replace_na(ksads_8_863_t, 0) == 1, 1, 0
     ),
     Social_Anxiety_Disorder_Source = case_when(
-      replace_na(ksads_8_863_p, 0) == 1 & replace_na(ksads_8_863_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_8_863_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_8_863_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_8_863_p, 0) == 1 & tidyr::replace_na(ksads_8_863_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_8_863_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_8_863_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
     ))
 
@@ -85,12 +85,12 @@ ABCD_KSADS_release_5.1_data_for_merging <- ABCD_KSADS_release_5.1_data_for_mergi
 ABCD_KSADS_release_5.1_data_for_merging <- ABCD_KSADS_release_5.1_data_for_merging %>%
   mutate(
     Separation_Anxiety_Disorder = if_else(
-      replace_na(ksads_7_861_p, 0) == 1 | replace_na(ksads_7_861_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_7_861_p, 0) == 1 | tidyr::replace_na(ksads_7_861_t, 0) == 1, 1, 0
     ),
     Separation_Anxiety_Disorder_Source = case_when(
-      replace_na(ksads_7_861_p, 0) == 1 & replace_na(ksads_7_861_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_7_861_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_7_861_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_7_861_p, 0) == 1 & tidyr::replace_na(ksads_7_861_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_7_861_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_7_861_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
     ))
 
@@ -98,12 +98,12 @@ ABCD_KSADS_release_5.1_data_for_merging <- ABCD_KSADS_release_5.1_data_for_mergi
 ABCD_KSADS_release_5.1_data_for_merging <- ABCD_KSADS_release_5.1_data_for_merging %>%
   mutate(
     MDD = if_else(
-      replace_na(ksads_1_840_p, 0) == 1 | replace_na(ksads_1_840_t, 0) == 1, 1, 0
+      tidyr::replace_na(ksads_1_840_p, 0) == 1 | tidyr::replace_na(ksads_1_840_t, 0) == 1, 1, 0
     ),
     MDD_Source = case_when(
-      replace_na(ksads_1_840_p, 0) == 1 & replace_na(ksads_1_840_t, 0) == 1 ~ "Concordant",
-      replace_na(ksads_1_840_p, 0) == 1 ~ "Parent",
-      replace_na(ksads_1_840_t, 0) == 1 ~ "Youth",
+      tidyr::replace_na(ksads_1_840_p, 0) == 1 & tidyr::replace_na(ksads_1_840_t, 0) == 1 ~ "Concordant",
+      tidyr::replace_na(ksads_1_840_p, 0) == 1 ~ "Parent",
+      tidyr::replace_na(ksads_1_840_t, 0) == 1 ~ "Youth",
       TRUE ~ "None"
     ))
 

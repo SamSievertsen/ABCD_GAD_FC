@@ -367,7 +367,7 @@ print(Merged_facet_plot_with_legend)
 
 
 #1.38 Save the final facet plot including the legend
-ggsave("./results/cbcl_merged_intx_analysis_facet_plot_with_legend.pdf", Merged_facet_plot_with_legend, bg = "white", width = 8.5, height = 11, units = "in", device = "pdf")
+ggsave("./results/cbcl_merged_intx_analysis_facet_plot_with_legend.png", Merged_facet_plot_with_legend, bg = "white", width = 8.5, height = 11, units = "in", device = "png")
 
 
 #2. Determine if there are any within GAD group differences in connectivity based on CBCL symptom dimension expression 
@@ -594,7 +594,7 @@ GAD_facet_plot <-
   do.call(grid.arrange, c(GAD_plots_list, nrow = 5))
 
 #2.55 Save the GAD group facet plot
-ggsave("./results/cbcl_gad_group_analysis_facet_plot.pdf", GAD_facet_plot, bg = "white", width = 8.5, height = 11, units = "in", dpi = 300, device = "pdf")
+ggsave("./results/cbcl_gad_group_analysis_facet_plot.png", GAD_facet_plot, bg = "white", width = 8.5, height = 11, units = "in", dpi = 300, device = "png")
 
 
 #3. Determine if there are any within Control group differences in connectivity based on CBCL symptom dimension expression 
@@ -818,7 +818,7 @@ for (i in seq_along(control_cbcl_scores)) {
 control_facet_plot <- do.call(grid.arrange, c(control_plots_list, nrow = 5))
 
 #3.55 Save the plot
-ggsave("./results/cbcl_hc_group_analysis_facet_plot.pdf", control_facet_plot, bg = "white", width = 8.5, height = 11, units = "in", dpi = 300, device = "pdf")
+ggsave("./results/cbcl_hc_group_analysis_facet_plot.png", control_facet_plot, bg = "white", width = 8.5, height = 11, units = "in", dpi = 300, device = "png")
 
 
 ## BPM Data Analysis ##
