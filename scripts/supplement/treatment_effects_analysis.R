@@ -41,11 +41,12 @@ group_con_difference_treatment_data <- left_join(site_visit_analysis_data, treat
 #2. Merge the treatment data with the repeated measures data
 repeated_measures_treatment_data <- left_join(repeated_measures_analysis_data, treatment_data, by = c("subjectkey" = "src_subject_id", "eventname" = "eventname"))
 
-#3. Aggregate the repeated measures treatment data to check if treatment was received across timepoints
+#3. Aggregate the repeated measures treatment data to check if treatment was received across timepoints and store the treatment status variable
 repeated_measures_aggregated_treatment_data <- repeated_measures_treatment_data %>%
   group_by(subjectkey, group) %>%
-  summarize(ever_treated = any(received_any_treatment == 1), .groups = "drop") %>% 
+  summarize(ever_treated = any(received_any_treatment == 1),  .groups = "drop") %>% 
   filter(group != "Control")
+
 
 #4. Create a binary variable for newly initiated services and dropped services between baseline and 2 year follow up in the GAD group
 repeated_measures_treatment_initiation_data <- repeated_measures_treatment_data %>% 
@@ -313,7 +314,7 @@ repeated_measures_treatment_initiation_table <- table(repeated_measures_treatmen
 repeated_measures_treatment_initiation_test <- fisher.test(repeated_measures_treatment_initiation_table)
 
 #4.13 Given that the results of the Fisher's exact test were significant, run a pairwise Fisher's on all individual levels of the treatment x GAD subgroup variables
-pairwise_result <- pairwiseNominalIndependence(repeated_measures_treatment_initiation_table, method = "fdr")
+repeated_measures_treatment_initiation_pairwise_result <- pairwiseNominalIndependence(repeated_measures_treatment_initiation_table, method = "fdr", stats = TRUE)
 
 #4.2 Dropping services after baseline
 #4.21 Create a contingency table for the dropped treatment services
@@ -321,6 +322,72 @@ repeated_measures_dropped_treatment_table <- table(repeated_measures_treatment_i
 
 #4.22 Perform a Fisher's exact test to determine if the frequency of dropped treatment between baseline and 2 year follow up by GAD subgroup is significantly different
 repeated_measures_dropped_treatment_test <- fisher.test(repeated_measures_dropped_treatment_table)
+
+#4.3 Treatment subgroup by GAD subgroup
+#4.31 Create a contigency table for the GAD subgroup x treatment status variables
+repeated_measures_GAD_treatment_subgroups_table <- table(repeated_measures_treatment_initiation_data$group, repeated_measures_treatment_initiation_data$treatment_status)
+
+#4.321 Perform a chi-square test to determine if there are differences in more well-defined treatment history between the GAD subgroups
+repeated_measures_GAD_treatment_subgroups_chisquare <- chisq.test(repeated_measures_GAD_treatment_subgroups_table)
+
+#4.322 Perform a Fishers exact test to determine if there are differences in more well-defined treatment history between the GAD subgroups
+repeated_measures_GAD_treatment_subgroups_fishers_test <- fisher.test(repeated_measures_GAD_treatment_subgroups_table)
+  
+#4.33 Perform post-hoc followup chi-square tests on the individual group level
+#4.331 Create a list to store results of the pairwise chi-square tests
+repeated_measures_GAD_treatment_subgroups_pairwise_results <- list()
+
+#4.332 Establish the names of the GAD subgroups
+repeated_measures_GAD_treatment_gad_subgroups <- rownames(repeated_measures_GAD_treatment_subgroups_table)
+
+#4.333 Set the levels of the treatment subgroups
+repeated_measures_GAD_treatment_subgroups_treatment_levels <- colnames(repeated_measures_GAD_treatment_subgroups_table)
+
+#4.334 Perform the pairwise chi-sqaure results
+for (i in 1:(length(repeated_measures_GAD_treatment_gad_subgroups) - 1)) {
+  for (j in (i + 1):length(repeated_measures_GAD_treatment_gad_subgroups)) {
+    group1 <- repeated_measures_GAD_treatment_gad_subgroups[i]
+    group2 <- repeated_measures_GAD_treatment_gad_subgroups[j]
+    
+    for (treatment in repeated_measures_GAD_treatment_subgroups_treatment_levels) {
+      #4.3341 Construct the 2x2 table for the current comparison
+      subset_table <- matrix(
+        c(
+          #4.33411 Positive instances for group1 and group2
+          repeated_measures_GAD_treatment_subgroups_table[group1, treatment],
+          repeated_measures_GAD_treatment_subgroups_table[group2, treatment],
+          #4.33412 Negative instances for group1 and group2
+          sum(repeated_measures_GAD_treatment_subgroups_table[group1, ]) - repeated_measures_GAD_treatment_subgroups_table[group1, treatment],
+          sum(repeated_measures_GAD_treatment_subgroups_table[group2, ]) - repeated_measures_GAD_treatment_subgroups_table[group2, treatment]
+        ),
+        nrow = 2,
+        byrow = TRUE,
+        dimnames = list(
+          c(group1, group2),
+          c(paste(treatment, "Yes"), paste(treatment, "No"))
+        )
+      )
+      
+      #4.3342 Run chi-square test on the 2x2 table
+      chisq_test <- chisq.test(subset_table)
+      
+      #4.3343 Store results
+      repeated_measures_GAD_treatment_subgroups_pairwise_results[[paste(group1, group2, treatment, sep = " vs ")]] <- list(
+        group1 = group1,
+        group2 = group2,
+        treatment_status = treatment,
+        chisq_stat = chisq_test$statistic,
+        p_value = chisq_test$p.value
+      )
+    }
+  }
+}
+
+#4.335 Convert results to a data frame
+repeated_measures_GAD_treatment_subgroups_pairwise_results_df <- do.call(rbind, lapply(repeated_measures_GAD_treatment_subgroups_pairwise_results, as.data.frame))
+
+#4.336 Apply FDR correction to p-values
+repeated_measures_GAD_treatment_subgroups_pairwise_results_df$adjusted_p_value <- p.adjust(repeated_measures_GAD_treatment_subgroups_pairwise_results_df$p_value, method = "fdr")
 
 
 #5. Assess whether connectivity change is associated with a change in treatment status in the 5 significant connectivity variables
