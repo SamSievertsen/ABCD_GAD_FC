@@ -391,10 +391,11 @@ repeated_measures_GAD_treatment_subgroups_pairwise_results_df$adjusted_p_value <
 
 
 #5. Assess whether connectivity change is associated with a change in treatment status in the 5 significant connectivity variables
-#5.1 Establish the range of the dependent variables 
+#5.1 Using the better powered 2 variable treatment between baseline and 2-year follow-up or not variable
+#5.11 Establish the range of the dependent variables 
 treatment_connectivity_analysis_dp_col_range <- 8:12
 
-#5.2 Initialize an empty dataframe to store analysis values
+#5.12 Initialize an empty dataframe to store analysis values
 treatment_connectivity_analysis_raw_results <- data.frame(
   column_name = character(), 
   IV = character(),
@@ -407,24 +408,24 @@ treatment_connectivity_analysis_raw_results <- data.frame(
   p_value = numeric(), 
   stringsAsFactors = FALSE)
 
-#5.3 Run the linear model for the site-visit group 
+#5.13 Run the linear model for the site-visit group 
 for (column_number in treatment_connectivity_analysis_dp_col_range) {
   
-  #5.31 Get the column name
+  #5.131 Get the column name
   dependent_variable <- colnames(repeated_measures_treatment_connectivity_change_data)[column_number]
   print(dependent_variable)
   
-  #5.32 Fit the linear regression model
+  #5.132 Fit the linear regression model
   treatment_connectivity_analysis_lm <- lmerTest::lmer(repeated_measures_treatment_connectivity_change_data[, dependent_variable] ~ treatment_bw_baseline_2y*eventname + rsfmri_c_ngd_meanmotion + sex+ (1|subjectkey) + (1|site_name) + (1|family_id), na.action = na.omit, data = repeated_measures_treatment_connectivity_change_data)
   
-  #5.33 Run the ANCOVA Model on the linear regression to extract omnibus group effect(s)
+  #5.133 Run the ANCOVA Model on the linear regression to extract omnibus group effect(s)
   treatment_connectivity_analysis_ANCOVA <- car::Anova(treatment_connectivity_analysis_lm, type = "III", test.statistic = "F")
   
-  #5.34 Loop through fixed effects in the model to extract relevant results
+  #5.134 Loop through fixed effects in the model to extract relevant results
   for (independent_variable in row.names(treatment_connectivity_analysis_ANCOVA)) {
     if (independent_variable == "rsfmri_c_ngd_meanmotion") {
       
-      #5.341 Extract + store parameters of interest for continuous variables
+      #5.1341 Extract + store parameters of interest for continuous variables
       summary_lm <- summary(treatment_connectivity_analysis_lm)
       estimate <- summary_lm$coefficients[independent_variable, "Estimate"]
       std_error <- summary_lm$coefficients[independent_variable, "Std. Error"]
@@ -442,7 +443,7 @@ for (column_number in treatment_connectivity_analysis_dp_col_range) {
         p_value = p_value))
     } else {
       
-      #5.342 Extract + store parameters of interest for categorical variables
+      #5.1342 Extract + store parameters of interest for categorical variables
       f_value <- treatment_connectivity_analysis_ANCOVA[independent_variable, "F"]
       df <- treatment_connectivity_analysis_ANCOVA[independent_variable, "Df"]
       residual_df <- treatment_connectivity_analysis_ANCOVA[independent_variable, "Df.res"]
@@ -462,31 +463,31 @@ for (column_number in treatment_connectivity_analysis_dp_col_range) {
   }
 }
 
-#5.41 Subset the data based on the relevant IV variable strings for FDR correction of p values
-#5.411 Subset the data for interaction terms containing ":eventname" in the IV variable
+#5.141 Subset the data based on the relevant IV variable strings for FDR correction of p values
+#5.1411 Subset the data for interaction terms containing ":eventname" in the IV variable
 treatment_connectivity_analysis_intx_p_adjust_subset <- subset(treatment_connectivity_analysis_raw_results, grepl(":eventname", IV))
 
-#5.412 Subset the data for main effects containing only "treatment_bw_baseline_2y" in the IV variable
+#5.1412 Subset the data for main effects containing only "treatment_bw_baseline_2y" in the IV variable
 treatment_connectivity_analysis_p_adjust_subset <- subset(
   treatment_connectivity_analysis_raw_results,  grepl("^treatment_bw_baseline_2y$", IV))
 
-#5.42 Create a new column conducting an FDR (p adjustment) on the derived p values
-#5.421 Interaction term p values
+#5.142 Create a new column conducting an FDR (p adjustment) on the derived p values
+#5.1421 Interaction term p values
 treatment_connectivity_analysis_intx_p_adjust_subset$p_adjusted <- p.adjust(treatment_connectivity_analysis_intx_p_adjust_subset$p_value, method = "fdr")
 
-#5.422 Main effect p values
+#5.1422 Main effect p values
 treatment_connectivity_analysis_p_adjust_subset$p_adjusted <- p.adjust(treatment_connectivity_analysis_p_adjust_subset$p_value, method = "fdr")
 
-#5.43 Merge the FDR corrected p-values together
+#5.143 Merge the FDR corrected p-values together
 treatment_connectivity_analysis_intx_p_adjust_subset <- full_join(treatment_connectivity_analysis_intx_p_adjust_subset, treatment_connectivity_analysis_p_adjust_subset)
 
-#5.44 Join the FDR corrected p-values with the rest of the model results 
+#5.144 Join the FDR corrected p-values with the rest of the model results 
 treatment_connectivity_analysis_merged_adjusted_p_values <- left_join(treatment_connectivity_analysis_raw_results, treatment_connectivity_analysis_intx_p_adjust_subset)
 
-#5.45 Remove all numbers from the strings in the column IV (for later merging purposes)
+#5.145 Remove all numbers from the strings in the column IV (for later merging purposes)
 treatment_connectivity_analysis_merged_adjusted_p_values$IV <- gsub("\\d+", "", treatment_connectivity_analysis_merged_adjusted_p_values$IV)
 
-#5.461 Rename IV values to match the expected paper format
+#5.1461 Rename IV values to match the expected paper format
 treatment_connectivity_analysis_merged_adjusted_p_values <- treatment_connectivity_analysis_merged_adjusted_p_values %>%
   mutate(
     IV = case_when(
@@ -497,10 +498,10 @@ treatment_connectivity_analysis_merged_adjusted_p_values <- treatment_connectivi
       IV == "treatment_bw_baseline_y:eventname" ~ "Treatment Between Baseline and 2Y*Timepoint Interaction",
       TRUE ~ IV))
 
-#5.462 Remove rows with Intercept values
+#5.1462 Remove rows with Intercept values
 treatment_connectivity_analysis_merged_adjusted_p_values <- treatment_connectivity_analysis_merged_adjusted_p_values[treatment_connectivity_analysis_merged_adjusted_p_values$IV != "(Intercept)", ]
 
-#5.47 Pivot the full model results to be in wide format
+#5.147 Pivot the full model results to be in wide format
 treatment_connectivity_analysis_merged_adjusted_p_values_pivoted <- treatment_connectivity_analysis_merged_adjusted_p_values %>%
   pivot_wider(
     id_cols = column_name,
@@ -508,7 +509,7 @@ treatment_connectivity_analysis_merged_adjusted_p_values_pivoted <- treatment_co
     values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
     names_glue = "{IV}_{.value}")
 
-#5.48 Reorder columns to match the order in the paper
+#5.148 Reorder columns to match the order in the paper
 treatment_connectivity_analysis_merged_adjusted_p_values_pivoted <-
   treatment_connectivity_analysis_merged_adjusted_p_values_pivoted %>%
   dplyr::select(c(
@@ -536,6 +537,151 @@ treatment_connectivity_analysis_merged_adjusted_p_values_pivoted <-
     `Timepoint_residual_df`,
     `Timepoint_p_value`))
 
+#5.2 Using the less well-powered 4 group treatment variable
+#5.21 Establish the range of the dependent variables 
+four_group_treatment_connectivity_analysis_dp_col_range <- 8:12
+
+#5.22 Initialize an empty dataframe to store analysis values
+four_group_treatment_connectivity_analysis_raw_results <- data.frame(
+  column_name = character(), 
+  IV = character(),
+  estimate = numeric(), 
+  std_error = numeric(), 
+  t_value = numeric(), 
+  f_value = numeric(), 
+  df = numeric(), 
+  residual_df = numeric(), 
+  p_value = numeric(), 
+  stringsAsFactors = FALSE)
+
+#5.23 Run the linear model for the site-visit group 
+for (column_number in four_group_treatment_connectivity_analysis_dp_col_range) {
+  
+  #5.231 Get the column name
+  dependent_variable <- colnames(repeated_measures_treatment_connectivity_change_data)[column_number]
+  print(dependent_variable)
+  
+  #5.232 Fit the linear regression model
+  four_group_treatment_connectivity_analysis_lm <- lmerTest::lmer(repeated_measures_treatment_connectivity_change_data[, dependent_variable] ~ treatment_status*eventname + rsfmri_c_ngd_meanmotion + sex+ (1|subjectkey) + (1|site_name) + (1|family_id), na.action = na.omit, data = repeated_measures_treatment_connectivity_change_data)
+  
+  #5.233 Run the ANCOVA Model on the linear regression to extract omnibus group effect(s)
+  four_group_treatment_connectivity_analysis_ANCOVA <- car::Anova(four_group_treatment_connectivity_analysis_lm, type = "III", test.statistic = "F")
+  
+  #5.234 Loop through fixed effects in the model to extract relevant results
+  for (independent_variable in row.names(four_group_treatment_connectivity_analysis_ANCOVA)) {
+    if (independent_variable == "rsfmri_c_ngd_meanmotion") {
+      
+      #5.2341 Extract + store parameters of interest for continuous variables
+      summary_lm <- summary(four_group_treatment_connectivity_analysis_lm)
+      estimate <- summary_lm$coefficients[independent_variable, "Estimate"]
+      std_error <- summary_lm$coefficients[independent_variable, "Std. Error"]
+      t_value <- summary_lm$coefficients[independent_variable, "t value"]
+      p_value <- summary_lm$coefficients[independent_variable, "Pr(>|t|)"]
+      four_group_treatment_connectivity_analysis_raw_results <- rbind(four_group_treatment_connectivity_analysis_raw_results, data.frame(
+        column_name = dependent_variable,
+        IV = independent_variable,
+        estimate = estimate,
+        std_error = std_error,
+        t_value = t_value,
+        f_value = NA,
+        df = NA,
+        residual_df = NA,
+        p_value = p_value))
+    } else {
+      
+      #5.2342 Extract + store parameters of interest for categorical variables
+      f_value <- four_group_treatment_connectivity_analysis_ANCOVA[independent_variable, "F"]
+      df <- four_group_treatment_connectivity_analysis_ANCOVA[independent_variable, "Df"]
+      residual_df <- four_group_treatment_connectivity_analysis_ANCOVA[independent_variable, "Df.res"]
+      p_value <- four_group_treatment_connectivity_analysis_ANCOVA[independent_variable, "Pr(>F)"] 
+      four_group_treatment_connectivity_analysis_raw_results <- rbind(four_group_treatment_connectivity_analysis_raw_results, data.frame(
+        column_name = dependent_variable,
+        IV = independent_variable,
+        estimate = NA,
+        std_error = NA,
+        t_value = NA,
+        f_value = f_value,
+        df = df,
+        residual_df = residual_df,
+        p_value = p_value
+      ))
+    }
+  }
+}
+
+#5.241 Subset the data based on the relevant IV variable strings for FDR correction of p values
+#5.2411 Subset the data for interaction terms containing ":eventname" in the IV variable
+four_group_treatment_connectivity_analysis_intx_p_adjust_subset <- subset(four_group_treatment_connectivity_analysis_raw_results, grepl(":eventname", IV))
+
+#5.2412 Subset the data for main effects containing only "treatment_status" in the IV variable
+four_group_treatment_connectivity_analysis_p_adjust_subset <- subset(
+  four_group_treatment_connectivity_analysis_raw_results,  grepl("^treatment_status$", IV))
+
+#5.242 Create a new column conducting an FDR (p adjustment) on the derived p values
+#5.2421 Interaction term p values
+four_group_treatment_connectivity_analysis_intx_p_adjust_subset$p_adjusted <- p.adjust(four_group_treatment_connectivity_analysis_intx_p_adjust_subset$p_value, method = "fdr")
+
+#5.2422 Main effect p values
+four_group_treatment_connectivity_analysis_p_adjust_subset$p_adjusted <- p.adjust(four_group_treatment_connectivity_analysis_p_adjust_subset$p_value, method = "fdr")
+
+#5.243 Merge the FDR corrected p-values together
+four_group_treatment_connectivity_analysis_intx_p_adjust_subset <- full_join(four_group_treatment_connectivity_analysis_intx_p_adjust_subset, four_group_treatment_connectivity_analysis_p_adjust_subset)
+
+#5.244 Join the FDR corrected p-values with the rest of the model results 
+four_group_treatment_connectivity_analysis_merged_adjusted_p_values <- left_join(four_group_treatment_connectivity_analysis_raw_results, four_group_treatment_connectivity_analysis_intx_p_adjust_subset)
+
+#5.245 Remove all numbers from the strings in the column IV (for later merging purposes)
+four_group_treatment_connectivity_analysis_merged_adjusted_p_values$IV <- gsub("\\d+", "", four_group_treatment_connectivity_analysis_merged_adjusted_p_values$IV)
+
+#5.2461 Rename IV values to match the expected paper format
+four_group_treatment_connectivity_analysis_merged_adjusted_p_values <- four_group_treatment_connectivity_analysis_merged_adjusted_p_values %>%
+  mutate(
+    IV = case_when(
+      IV == "treatment_status" ~ "Treatment Status",
+      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
+      IV == "sex" ~ "Sex",
+      IV == "eventname" ~ "Timepoint",
+      IV == "treatment_status:eventname" ~ "Treatment Status*Timepoint Interaction",
+      TRUE ~ IV))
+
+#5.2462 Remove rows with Intercept values
+four_group_treatment_connectivity_analysis_merged_adjusted_p_values <- four_group_treatment_connectivity_analysis_merged_adjusted_p_values[four_group_treatment_connectivity_analysis_merged_adjusted_p_values$IV != "(Intercept)", ]
+
+#5.247 Pivot the full model results to be in wide format
+four_group_treatment_connectivity_analysis_merged_adjusted_p_values_pivoted <- four_group_treatment_connectivity_analysis_merged_adjusted_p_values %>%
+  pivot_wider(
+    id_cols = column_name,
+    names_from = IV,
+    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
+    names_glue = "{IV}_{.value}")
+
+#5.248 Reorder columns to match the order in the paper
+four_group_treatment_connectivity_analysis_merged_adjusted_p_values_pivoted <-
+  four_group_treatment_connectivity_analysis_merged_adjusted_p_values_pivoted %>%
+  dplyr::select(c(
+    column_name,
+    `Treatment Status*Timepoint Interaction_f_value`,
+    `Treatment Status*Timepoint Interaction_df`,
+    `Treatment Status*Timepoint Interaction_residual_df`,
+    `Treatment Status*Timepoint Interaction_p_value`,
+    `Treatment Status*Timepoint Interaction_p_adjusted`,
+    `Treatment Status_f_value`,
+    `Treatment Status_df`,
+    `Treatment Status_residual_df`,
+    `Treatment Status_p_value`,
+    `Treatment Status_p_adjusted`, 
+    `FD Motion_estimate`,
+    `FD Motion_t_value`,
+    `FD Motion_std_error`,
+    `FD Motion_p_value`,
+    `Sex_f_value`,
+    `Sex_df`,
+    `Sex_residual_df`,
+    `Sex_p_value`,
+    `Timepoint_f_value`,
+    `Timepoint_df`,
+    `Timepoint_residual_df`,
+    `Timepoint_p_value`))
 
 
 #6. Assess whether treatment subgroup interacting with GAD subgroup is significantly associated with a change in within-VAN connectivity
@@ -585,3 +731,6 @@ write.csv(repeated_measures_treatment_summary_stats, "./results/repeated_measure
 
 #3. Write the connectivity ~ treatment subgroup repeated measures analysis results as a csv file
 write.csv(treatment_connectivity_analysis_merged_adjusted_p_values_pivoted, "./results/treatment_group_connectivity_analysis_results.csv", row.names = FALSE)
+
+#4. Write the connectivity ~ 4 treatment subgroup repeated measures analysis results as a csv file
+write.csv(four_group_treatment_connectivity_analysis_merged_adjusted_p_values_pivoted, "./results/four_group_treatment_connectivity_analysis_results.csv", row.names = FALSE)
