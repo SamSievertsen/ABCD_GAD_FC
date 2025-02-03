@@ -307,7 +307,6 @@ Amygdala_CO_Network_violin_plot <- ggplot(data = site_visit_analysis_data_for_pl
   ylab("") +
   xlab("") +
   ggtitle("CON - Left Amygdala") +
-  scale_y_continuous(limits = c(-0.6, 0.6)) +
   scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) + 
   theme_bw() +
   theme(
@@ -319,7 +318,7 @@ Amygdala_CO_Network_violin_plot <- ggplot(data = site_visit_analysis_data_for_pl
     legend.position = "none")
 
 #2.217 Save the Amygdala + CO Network violin plot
-ggsave("Amygdala_CO_Network_violin_plot.png", plot = Amygdala_CO_Network_violin_plot, bg = "white", height = 3, width = 5.04)
+ggsave("Amygdala_CO_Network_violin_plot.png", plot = Amygdala_CO_Network_violin_plot, bg = "white", height = 3, width = 4.50)
 
 #2.22 CO Network - Left Caudate
 #2.221 Caudate Regions  
@@ -354,7 +353,6 @@ Caudate_CO_Network_violin_plot <- ggplot(data = site_visit_analysis_data_for_plo
   geom_boxplot(width = 0.1, fill = "white") +
   ylab("") +
   xlab("") +
-  scale_y_continuous(limits = c(-0.6, 0.6)) +
   scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) + 
   theme_bw() +
   theme(
@@ -428,7 +426,6 @@ Putamen_DM_Network_violin_plot <- ggplot(data = site_visit_analysis_data_for_plo
   geom_boxplot(width = 0.1, fill = "white") +
   ylab("") +
   xlab("") +
-  scale_y_continuous(limits = c(-0.6, 0.6)) +
   scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) + 
   theme_bw() +
   theme(
@@ -472,7 +469,6 @@ Putamen_SA_Network_violin_plot <- ggplot(data = site_visit_analysis_data_for_plo
   geom_boxplot(width = 0.1, fill = "white") +
   ylab("") +
   xlab("") +
-  scale_y_continuous(limits = c(-0.6, 0.6)) +
   scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) + 
   theme_bw() +
   theme(
@@ -516,7 +512,6 @@ Within_VAN_Network_violin_plot <- ggplot(data = site_visit_analysis_data_for_plo
   geom_boxplot(width = 0.1, fill = "white") +
   ylab("Functional Connectivity") +
   xlab("") +
-  scale_y_continuous(limits = c(-0.6, 0.6)) +
   scale_fill_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) + 
   theme_bw() +
   theme(
