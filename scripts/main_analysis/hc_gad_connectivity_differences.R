@@ -61,7 +61,7 @@ site_visit_analysis_data$analysis_group <- relevel(site_visit_analysis_data$anal
 #1. Run the linear model for the site-visit group using the relevant dataset. 
 
 #1.1 Establish the range of the dependent variables 
-site_visit_dp_col_range <- 11:104
+site_visit_dp_col_range <- 10:103
 
 #1.2 Create an empty dataframe to store analysis values
 site_visit_results_df <- data.frame(
@@ -162,8 +162,7 @@ site_visit_significant_results_full_models <- left_join(site_visit_significant_r
 #1.4532 Merge the FDR corrected P values back into the full all model results where applicable
 site_visit_results_df_merged_adjusted_p_values <- left_join(site_visit_results_df, site_visit_p_adjust_subset)
 
-#1.4541 Pivot the full model significant results data to be wider (for copying into results tables)
-# Convert necessary columns to numeric to avoid type issues
+#1.4541 Convert necessary columns to numeric to avoid type issues
 site_visit_significant_results_full_models <- site_visit_significant_results_full_models %>%
   mutate(across(c(estimate, std_error, t_value, f_value, df, residual_df, p_value, p_adjusted), as.numeric))
 

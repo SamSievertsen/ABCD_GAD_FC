@@ -58,4 +58,4 @@ site_visit_analysis_data <- left_join(site_visit_analysis_data, abcd_family_id_d
 ## Output ## 
 
 #1. Write the site-visit analysis data as a csv file for use in downstream analyses
-site_visit_analysis_data <- write.csv("./data_processed/main_analysis/site_visit_analysis_data.csv")
+write.csv(site_visit_analysis_data, "./data_processed/main_analysis/site_visit_analysis_data.csv", row.names = FALSE)
