@@ -45,14 +45,18 @@ case_control_sample$analysis_group <- if_else(case_control_sample$group == "cont
 
 #2. Create a cleaned dataframe containing relevant DVs and IVs for site-visit GAD & Control subjects
 #2.1 Merge case-control sample with clinical imaging data, excluding the column `ksads_10_869_p`
-site_visit_analysis_data <- merge(
-  case_control_sample, 
-  dplyr::select(clinical_imaging_data, -ksads_10_869_p), 
-  by = c("subjectkey", "site_name", "eventname", "interview_age", "sex"), 
-  all.x = TRUE)
+site_visit_analysis_data <- case_control_sample %>%
+  dplyr::select(subjectkey, eventname, group, sex, interview_age, site_name, age_in_years, analysis_group) %>%
+  dplyr::left_join(
+    dplyr::select(clinical_imaging_data, -ksads_10_869_p),
+    by = c("subjectkey","eventname", "sex", "interview_age", "site_name"))
 
-# 2.2 Merge the site-visit analysis data with family ID data
+#2.2 Merge the site-visit analysis data with family ID data
 site_visit_analysis_data <- left_join(site_visit_analysis_data, abcd_family_id_data)
+
+#2.3 Ensure column ordering is optimized for downstream analyses
+site_visit_analysis_data <- site_visit_analysis_data %>% 
+  dplyr::select(subjectkey, site_name, eventname, interview_age, sex, group, age_in_years, analysis_group, imgincl_rsfmri_include, rel_family_id, rsfmri_c_ngd_meanmotion, everything())
 
 
 ## Output ## 

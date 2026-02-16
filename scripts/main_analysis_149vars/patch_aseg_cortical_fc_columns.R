@@ -258,14 +258,16 @@ base_cols <- setdiff(names(base), c("subjectkey","eventname"))
 
 # Define tolerance and numeric equality helpers for audit
 tol  <- 1e-10; to_num <- function(x) suppressWarnings(as.numeric(x))
-all_equal_num <- function(a, b) all(abs(a - b) <= tol | (is.na(a) & is.na(b)), na.rm = TRUE)]
+all_equal_num <- function(a, b) all(abs(a - b) <= tol | (is.na(a) & is.na(b)), na.rm = TRUE)
 
 # Decide sources and audit the validity of them + the resulting data merged into the new df
 src_info <- lapply(base_cols, function(b) decide_src(b, old_to_correct, names(raw), correct_set))
 audit <- tibble::tibble(
   column = base_cols,
-  src = vapply(src_info, function(x) x$src,    character(1)),
-  reason = vapply(src_info, function(x) x$reason, character(1))) %>%
+  src = vapply(src_info, function(x)
+    x$src, character(1)),
+  reason = vapply(src_info, function(x)
+    x$reason, character(1))) %>%
   
   # Flag columns that were updated & patched, with comparisons between src and putput (i.e., does patched == raw? How about base?)
   dplyr::mutate(
@@ -273,13 +275,15 @@ audit <- tibble::tibble(
     base_vals_num = purrr::map(column, ~ to_num(base[[.x]])),
     patched_vals_num = purrr::map(column, ~ to_num(patched[[.x]])),
     raw_vals_num = purrr::map(src,
-                              ~ if (is.na(.x)) rep(NA_real_, nrow(base)) else to_num(raw[[.x]][row_idx])),
+      ~ if (is.na(.x))
+        rep(NA_real_, nrow(base))
+      else
+        to_num(raw[[.x]][row_idx])),
     eq_patched_raw = purrr::map2_lgl(patched_vals_num, raw_vals_num,  all_equal_num),
     eq_base_raw = purrr::map2_lgl(base_vals_num,    raw_vals_num,  all_equal_num),
     eq_patched_base = purrr::map2_lgl(patched_vals_num, base_vals_num, all_equal_num),
-    n_changed = purrr::pmap_int(                                  
-      list(base_vals_num, patched_vals_num),
-      ~ sum(!(abs(..1 - ..2) <= tol | (is.na(..1) & is.na(..2))), na.rm = TRUE)),
+    n_changed = purrr::pmap_int(list(base_vals_num, patched_vals_num),
+      ~ sum(!(abs(..1-..2) <= tol | (is.na(..1) & is.na(..2))), na.rm = TRUE)),
     n_rows = nrow(base))
 
 # Print summary of audit

@@ -10,7 +10,7 @@ library(tidyr)
 options(digits = 6, scipen = 999)
 
 # Load in resting state fMRI data
-qcd_rsfmri_data <- read.csv("./data_processed/rsfMRI_data_qcd_unsubset.csv")
+qcd_rsfmri_data <- read.csv("./data_processed/main_analysis/subset_qcd_imaging_data.csv")
 
 # Load in merged HC + GAD subject sample & exclude imaging data
 merged_hc_gad_sample <- read.csv("./data_processed/main_analysis/site_visit_analysis_data.csv") %>% 

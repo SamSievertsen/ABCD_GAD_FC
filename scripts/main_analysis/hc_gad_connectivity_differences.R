@@ -19,6 +19,8 @@ library(ggseg3d)
 library(ggsegGordon)
 library(gridGraphics) 
 library(patchwork)
+options(digits = 8, scipen = 999) 
+set.seed(123)
 
 # Read in analysis data
 site_visit_analysis_data <- read.csv("./data_processed/main_analysis/site_visit_analysis_data.csv")
@@ -36,7 +38,7 @@ ethnicity_data_raw <- read.delim("./data_raw/acspsw03.txt") %>%
 
 #1. Transform all variables to the appropriate data type for modeling
 #1.1 All numeric type variables
-site_visit_analysis_data <- mutate_at(site_visit_analysis_data, vars(10:104), as.numeric)
+site_visit_analysis_data <- mutate_at(site_visit_analysis_data, vars(11:105), as.numeric)
 
 #1.2 Factor type variables
 #1.21 Biological sex
@@ -61,7 +63,7 @@ site_visit_analysis_data$analysis_group <- relevel(site_visit_analysis_data$anal
 #1. Run the linear model for the site-visit group using the relevant dataset. 
 
 #1.1 Establish the range of the dependent variables 
-site_visit_dp_col_range <- 10:103
+site_visit_dp_col_range <- 12:105
 
 #1.2 Create an empty dataframe to store analysis values
 site_visit_results_df <- data.frame(
