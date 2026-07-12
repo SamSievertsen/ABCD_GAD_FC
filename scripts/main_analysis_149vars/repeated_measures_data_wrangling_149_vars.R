@@ -25,16 +25,15 @@ column_mapping_path <- "./data_raw/rsfmri_gpnet_aseg_correction.csv"
 #1.4 Significant DV list from the corrected 149-variable HC versus GAD analysis
 sig_results_path <- "./results/results_149_vars/site_visit_significant_results_149vars.xlsx"
 
-#1.5 Published repeated measures dataset containing the exact longitudinal subject-event cohort and diagnostic trajectory groups
+#1.5 Published repeated measures dataset containing the longitudinal diagnostic trajectory groups
 rm_group_source_path <- "./data_processed/main_analysis/repeated_measures_grouped_imaging_data.csv"
 
 #1.6 Primary QC-complete repeated measures output
 primary_out_path <- "./data_processed/main_analysis/repeated_measures_grouped_imaging_data_149vars.csv"
 
-#1.7 Exact published-cohort sensitivity output using corrected connectivity values
+#1.7 published-cohort sensitivity output using corrected connectivity values
 sensitivity_out_path <-
-  paste0(
-    "./data_processed/main_analysis/",
+  paste0("./data_processed/main_analysis/",
     "repeated_measures_grouped_imaging_data_149vars_",
     "published_cohort_sensitivity.csv")
 
@@ -283,7 +282,7 @@ if (length(missing_scaffold_vars) > 0) {
     paste(missing_scaffold_vars, collapse = ", "))
 }
 
-#5.2 Create the exact subject-event scaffold from the published analysis
+#5.2 Create the subject-event scaffold from the published analysis
 published_rm_scaffold <- rm_group_source %>%
   dplyr::select(
     dplyr::all_of(required_scaffold_vars)) %>%
@@ -414,8 +413,7 @@ primary_repeated_measures_data <-
   dplyr::filter(
     imgincl_rsfmri_include == 1)
 
-#6.7 Require simultaneous completeness across every model covariate and
-# all 20 connectivity outcomes
+#6.7 Require simultaneous completeness across every model covariate and all 20 connectivity outcomes
 primary_required_vars <- c(
   "interview_age",
   "sex",
@@ -431,8 +429,7 @@ primary_repeated_measures_data <-
       dplyr::all_of(primary_required_vars),
       ~ !is.na(.x)))
 
-#6.8 Require exactly one baseline and one two-year follow-up row after
-# applying QC and simultaneous complete-case restrictions
+#6.8 Require one baseline and one two-year follow-up row after applying QC and simultaneous complete-case restrictions
 primary_repeated_measures_data <-
   primary_repeated_measures_data %>%
   dplyr::group_by(subjectkey) %>%
@@ -558,7 +555,7 @@ corrected_raw_fc <- raw_rsfmri_corrected %>%
       dplyr::all_of(sig_dvs),
       ~ suppressWarnings(as.numeric(.x))))
 
-#7.8 Join corrected connectivity values onto the exact published scaffold
+#7.8 Join corrected connectivity values onto the published scaffold
 sensitivity_repeated_measures_data <-
   published_rm_scaffold %>%
   dplyr::left_join(
@@ -599,7 +596,7 @@ incomplete_sensitivity_rows <-
 
 if (nrow(incomplete_sensitivity_rows) > 0) {
   stop(
-    "The exact published-cohort sensitivity dataset contains ",
+    "The published-cohort sensitivity dataset contains ",
     nrow(incomplete_sensitivity_rows),
     " incomplete rows after attaching the corrected connectivity data.")
 }
@@ -701,7 +698,7 @@ validate_repeated_measures_dataset(
     "group",
     primary_required_vars))
 
-#9.1 Validate the exact published-cohort sensitivity dataset
+#9.1 Validate the published-cohort sensitivity dataset
 validate_repeated_measures_dataset(
   data = sensitivity_repeated_measures_data,
   dataset_name =
@@ -723,7 +720,7 @@ readr::write_csv(
   primary_repeated_measures_data,
   primary_out_path)
 
-#10.1 Write the exact published-cohort corrected sensitivity dataset
+#10.1 Write the  published-cohort corrected sensitivity dataset
 readr::write_csv(
   sensitivity_repeated_measures_data,
   sensitivity_out_path)
