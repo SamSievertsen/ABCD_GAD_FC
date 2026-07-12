@@ -13,7 +13,9 @@ options(digits = 6, scipen = 999)
 
 ## Paths ##
 
-#1.1 Corrected and QC-filtered imaging data with all 149 connectivity metrics
+#1.1 Corrected 149-variable imaging subset retained only for validation.
+# It is NOT used to define repeated-measures eligibility because its row
+# universe is inherited from a restricted upstream subset.
 qcd_rsfmri_path <- "./data_processed/main_analysis/subset_qcd_imaging_data_149vars.csv"
 
 #1.2 Unfiltered raw rsfMRI data
@@ -21,6 +23,9 @@ raw_rsfmri_path <- "./data_raw/ABCD_rsfMRI_Data.csv"
 
 #1.3 Official mapping of previously used to corrected rsfMRI column names
 column_mapping_path <- "./data_raw/rsfmri_gpnet_aseg_correction.csv"
+
+#1.3.1 Direct rsfMRI QC source of truth
+qc_source_path <- "./data_raw/abcd_imgincl01.csv"
 
 #1.4 Significant DV list from the corrected 149-variable HC versus GAD analysis
 sig_results_path <- "./results/results_149_vars/site_visit_significant_results_149vars.xlsx"
@@ -63,9 +68,9 @@ expected_primary_group_counts <- tibble::tibble(
     "GAD Remitter"),
   expected_n = c(
     12L,
-    1606L,
+    1661L,
     46L,
-    46L))
+    48L))
 
 #2.3 Define the expected published-cohort sensitivity sample counts
 expected_sensitivity_group_counts <- tibble::tibble(
@@ -319,151 +324,10 @@ if (nrow(duplicated_subject_lookup) > 0) {
 }
 
 
-## Primary QC-Complete Repeated Measures Dataset ##
 
-#6. Read the corrected and QC-filtered 149-variable imaging dataset
-qcd_rsfmri_data <- read.csv(
-  qcd_rsfmri_path,
-  stringsAsFactors = FALSE) %>%
-  dplyr::mutate(
-    subjectkey = trimws(as.character(subjectkey)),
-    eventname = trimws(as.character(eventname)),
-    site_name = trimws(as.character(site_name)),
-    sex = trimws(as.character(sex))) %>%
-  dplyr::filter(
-    eventname %in% analysis_events)
+## Corrected Raw rsfMRI and Direct QC Sources ##
 
-#6.1 Confirm that all required primary imaging variables exist
-required_qcd_vars <- c(
-  "subjectkey",
-  "eventname",
-  "interview_age",
-  "sex",
-  "site_name",
-  "imgincl_rsfmri_include",
-  "rsfmri_c_ngd_meanmotion",
-  sig_dvs)
-
-missing_qcd_vars <- setdiff(
-  required_qcd_vars,
-  names(qcd_rsfmri_data))
-
-if (length(missing_qcd_vars) > 0) {
-  stop(
-    "The corrected QC-filtered imaging data are missing: ",
-    paste(missing_qcd_vars, collapse = ", "))
-}
-
-#6.2 Confirm that the corrected QC-filtered data have unique subject-event rows
-qcd_key_duplicates <- qcd_rsfmri_data %>%
-  dplyr::count(subjectkey, eventname) %>%
-  dplyr::filter(n > 1)
-
-if (nrow(qcd_key_duplicates) > 0) {
-  stop(
-    "The corrected QC-filtered imaging data contain duplicated ",
-    "subject-event rows.")
-}
-
-#6.3 Retain the repeated measures cohort and attach trajectory group and family ID
-primary_repeated_measures_data <- qcd_rsfmri_data %>%
-  dplyr::select(
-    subjectkey,
-    eventname,
-    interview_age,
-    sex,
-    site_name,
-    imgincl_rsfmri_include,
-    rsfmri_c_ngd_meanmotion,
-    dplyr::all_of(sig_dvs)) %>%
-  dplyr::semi_join(
-    rm_subject_lookup,
-    by = "subjectkey") %>%
-  dplyr::left_join(
-    rm_subject_lookup,
-    by = "subjectkey")
-
-#6.4 Standardize empty model variables to missing values
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::mutate(
-    sex = dplyr::na_if(trimws(as.character(sex)), ""),
-    site_name =
-      dplyr::na_if(trimws(as.character(site_name)), ""),
-    family_id =
-      dplyr::na_if(trimws(as.character(family_id)), ""))
-
-#6.5 Convert imaging inclusion, age, motion, and connectivity metrics to numeric
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::mutate(
-    imgincl_rsfmri_include =
-      suppressWarnings(as.numeric(imgincl_rsfmri_include)),
-    interview_age =
-      suppressWarnings(as.numeric(interview_age)),
-    rsfmri_c_ngd_meanmotion =
-      suppressWarnings(as.numeric(rsfmri_c_ngd_meanmotion)),
-    dplyr::across(
-      dplyr::all_of(sig_dvs),
-      ~ suppressWarnings(as.numeric(.x))))
-
-#6.6 Require rsfMRI inclusion at each retained assessment wave
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::filter(
-    imgincl_rsfmri_include == 1)
-
-#6.7 Require simultaneous completeness across every model covariate and all 20 connectivity outcomes
-primary_required_vars <- c(
-  "interview_age",
-  "sex",
-  "site_name",
-  "family_id",
-  "rsfmri_c_ngd_meanmotion",
-  sig_dvs)
-
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::filter(
-    dplyr::if_all(
-      dplyr::all_of(primary_required_vars),
-      ~ !is.na(.x)))
-
-#6.8 Require one baseline and one two-year follow-up row after applying QC and simultaneous complete-case restrictions
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::group_by(subjectkey) %>%
-  dplyr::filter(
-    dplyr::n() == 2,
-    dplyr::n_distinct(eventname) == 2,
-    all(analysis_events %in% eventname)) %>%
-  dplyr::ungroup()
-
-#6.9 Create age in years
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::mutate(
-    age_in_years = floor(interview_age / 12))
-
-#6.10 Retain and order the primary modeling variables
-primary_repeated_measures_data <-
-  primary_repeated_measures_data %>%
-  dplyr::select(
-    subjectkey,
-    eventname,
-    group,
-    interview_age,
-    age_in_years,
-    sex,
-    site_name,
-    family_id,
-    rsfmri_c_ngd_meanmotion,
-    dplyr::all_of(sig_dvs))
-
-
-## Published-Cohort Corrected Sensitivity Dataset ##
-
-#7. Read and clean the official rsfMRI column correction mapping
+#6. Read and clean the official rsfMRI column correction mapping
 map_raw <- readr::read_csv(
   column_mapping_path,
   show_col_types = FALSE)
@@ -483,7 +347,7 @@ mapping <- map_raw %>%
     old = trimws(old),
     correct = trimws(correct))
 
-#7.1 Ensure that each old column name maps to one corrected destination
+#6.1 Ensure that each old column name maps to one corrected destination
 duplicate_old_names <- mapping %>%
   dplyr::count(old) %>%
   dplyr::filter(n > 1)
@@ -497,7 +361,7 @@ old_to_correct <- stats::setNames(
   mapping$correct,
   mapping$old)
 
-#7.2 Read the unfiltered raw rsfMRI data
+#6.2 Read the unfiltered raw rsfMRI data
 raw_rsfmri_corrected <- readr::read_csv(
   raw_rsfmri_path,
   show_col_types = FALSE) %>%
@@ -507,12 +371,14 @@ raw_rsfmri_corrected <- readr::read_csv(
     eventname = trimws(as.character(eventname))) %>%
   dplyr::filter(eventname %in% analysis_events)
 
-#7.3 Rename the raw headers using the official correction mapping
+#6.3 Rename the raw headers using the official correction mapping.
+# This happens only in memory on a freshly read raw file, so rerunning the
+# script cannot rename an already corrected output a second time.
 corrected_names <- old_to_correct[names(raw_rsfmri_corrected)]
+names(raw_rsfmri_corrected)[!is.na(corrected_names)] <-
+  corrected_names[!is.na(corrected_names)]
 
-names(raw_rsfmri_corrected)[!is.na(corrected_names)] <- corrected_names[!is.na(corrected_names)]
-
-#7.4 Confirm that header correction did not create duplicated column names
+#6.4 Confirm that header correction did not create duplicated column names
 duplicated_corrected_headers <- unique(
   names(raw_rsfmri_corrected)[
     duplicated(names(raw_rsfmri_corrected))])
@@ -523,7 +389,7 @@ if (length(duplicated_corrected_headers) > 0) {
     paste(duplicated_corrected_headers, collapse = ", "))
 }
 
-#7.5 Confirm that the corrected raw data have unique subject-event rows
+#6.5 Confirm that the corrected raw data have unique subject-event rows
 raw_key_duplicates <- raw_rsfmri_corrected %>%
   dplyr::count(subjectkey, eventname) %>%
   dplyr::filter(n > 1)
@@ -533,18 +399,25 @@ if (nrow(raw_key_duplicates) > 0) {
     "The corrected raw rsfMRI data contain duplicated subject-event rows.")
 }
 
-#7.6 Confirm that all 20 significant outcomes exist in the corrected raw data
-missing_raw_dvs <- setdiff(
-  sig_dvs,
+#6.6 Confirm that the raw rsfMRI table contains the subject-event keys
+# and all 20 corrected connectivity outcomes. Non-connectivity model
+# covariates are retained from the exact published repeated-measures scaffold.
+required_raw_vars <- c(
+  "subjectkey",
+  "eventname",
+  sig_dvs)
+
+missing_raw_vars <- setdiff(
+  required_raw_vars,
   names(raw_rsfmri_corrected))
 
-if (length(missing_raw_dvs) > 0) {
+if (length(missing_raw_vars) > 0) {
   stop(
     "The corrected raw rsfMRI data are missing: ",
-    paste(missing_raw_dvs, collapse = ", "))
+    paste(missing_raw_vars, collapse = ", "))
 }
 
-#7.7 Create the corrected raw connectivity table
+#6.7 Create the corrected raw connectivity source. The raw rsfMRI table is the source of truth for the corrected FC values. All non-connectivity model covariates remain tied to the published subject-event scaffold so that cohort inclusion is the only intended change
 corrected_raw_fc <- raw_rsfmri_corrected %>%
   dplyr::select(
     subjectkey,
@@ -555,14 +428,126 @@ corrected_raw_fc <- raw_rsfmri_corrected %>%
       dplyr::all_of(sig_dvs),
       ~ suppressWarnings(as.numeric(.x))))
 
-#7.8 Join corrected connectivity values onto the published scaffold
+#6.8 Read the direct ABCD rsfMRI inclusion variable
+direct_qc <- readr::read_csv(
+  qc_source_path,
+  show_col_types = FALSE) %>%
+  dplyr::slice(-1) %>%
+  dplyr::transmute(
+    subjectkey = trimws(as.character(src_subject_id)),
+    eventname = trimws(as.character(eventname)),
+    imgincl_rsfmri_include =
+      suppressWarnings(as.numeric(imgincl_rsfmri_include))) %>%
+  dplyr::filter(eventname %in% analysis_events)
+
+direct_qc_duplicates <- direct_qc %>%
+  dplyr::count(subjectkey, eventname) %>%
+  dplyr::filter(n > 1)
+
+if (nrow(direct_qc_duplicates) > 0) {
+  stop(
+    "The direct rsfMRI QC source contains duplicated subject-event rows.")
+}
+
+
+## Primary QC-Complete Repeated Measures Dataset ##
+
+#7. Begin with the exact published subject-event scaffold, then attach:
+#   - row-specific corrected raw imaging/covariate data; and
+#   - the direct rsfMRI QC flag.
+# Presence in subset_qcd_imaging_data_149vars.csv is deliberately not an
+# eligibility condition.
+primary_row_universe <- published_rm_scaffold %>%
+  dplyr::mutate(
+    subjectkey = trimws(as.character(subjectkey)),
+    eventname = trimws(as.character(eventname)),
+    group = trimws(as.character(group)),
+    interview_age =
+      suppressWarnings(as.numeric(interview_age)),
+    sex =
+      dplyr::na_if(trimws(as.character(sex)), ""),
+    site_name =
+      dplyr::na_if(trimws(as.character(site_name)), ""),
+    family_id =
+      dplyr::na_if(trimws(as.character(family_id)), ""),
+    rsfmri_c_ngd_meanmotion =
+      suppressWarnings(as.numeric(rsfmri_c_ngd_meanmotion))) %>%
+  dplyr::left_join(
+    corrected_raw_fc,
+    by = c("subjectkey", "eventname")) %>%
+  dplyr::left_join(
+    direct_qc,
+    by = c("subjectkey", "eventname"))
+
+if (nrow(primary_row_universe) != nrow(published_rm_scaffold)) {
+  stop(
+    "Joining raw imaging and direct QC changed the number of published ",
+    "subject-event scaffold rows.")
+}
+
+#7.1 Standardize the directly attached QC variable
+primary_row_universe <- primary_row_universe %>%
+  dplyr::mutate(
+    imgincl_rsfmri_include =
+      suppressWarnings(as.numeric(imgincl_rsfmri_include)))
+
+#7.2 Define simultaneous model completeness
+primary_required_vars <- c(
+  "interview_age",
+  "sex",
+  "site_name",
+  "family_id",
+  "rsfmri_c_ngd_meanmotion",
+  sig_dvs)
+
+primary_row_universe <- primary_row_universe %>%
+  dplyr::mutate(
+    row_model_complete =
+      dplyr::if_all(
+        dplyr::all_of(primary_required_vars),
+        ~ !is.na(.x)),
+    row_qc_pass =
+      !is.na(imgincl_rsfmri_include) &
+      imgincl_rsfmri_include == 1)
+
+#7.3 Apply the direct row-level QC and simultaneous complete-case rules
+primary_repeated_measures_data <- primary_row_universe %>%
+  dplyr::filter(
+    row_qc_pass,
+    row_model_complete) %>%
+  dplyr::group_by(subjectkey) %>%
+  dplyr::filter(
+    dplyr::n() == 2,
+    dplyr::n_distinct(eventname) == 2,
+    all(analysis_events %in% eventname)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(
+    age_in_years = floor(interview_age / 12)) %>%
+  dplyr::select(
+    subjectkey,
+    eventname,
+    group,
+    interview_age,
+    age_in_years,
+    sex,
+    site_name,
+    family_id,
+    rsfmri_c_ngd_meanmotion,
+    dplyr::all_of(sig_dvs))
+
+
+## Published-Cohort Corrected Sensitivity Dataset ##
+
+#8. The corrected raw connectivity table was created in Section 6.7
+
+#8.1 Join corrected connectivity values onto the exact published scaffold
 sensitivity_repeated_measures_data <-
   published_rm_scaffold %>%
   dplyr::left_join(
     corrected_raw_fc,
     by = c("subjectkey", "eventname"))
 
-#7.9 Standardize and convert the published model covariates
+#8.2 Standardize and convert the published model covariates
 sensitivity_repeated_measures_data <-
   sensitivity_repeated_measures_data %>%
   dplyr::mutate(
@@ -577,7 +562,7 @@ sensitivity_repeated_measures_data <-
       suppressWarnings(as.numeric(rsfmri_c_ngd_meanmotion)),
     age_in_years = floor(interview_age / 12))
 
-#7.10 Require simultaneous completeness while preserving the exact
+#8.3 Require simultaneous completeness while preserving the exact
 # published cohort
 sensitivity_required_vars <- c(
   "interview_age",
@@ -601,7 +586,7 @@ if (nrow(incomplete_sensitivity_rows) > 0) {
     " incomplete rows after attaching the corrected connectivity data.")
 }
 
-#7.11 Retain and order the sensitivity modeling variables
+#8.4 Retain and order the sensitivity modeling variables
 sensitivity_repeated_measures_data <-
   sensitivity_repeated_measures_data %>%
   dplyr::select(
@@ -617,53 +602,392 @@ sensitivity_repeated_measures_data <-
     dplyr::all_of(sig_dvs))
 
 
-## Sample and QC Audits ##
+## Validation Against Existing Pipeline Artifacts ##
 
-#8. Create a row-level audit of availability in the corrected QC-filtered data
-qcd_key_presence <- qcd_rsfmri_data %>%
-  dplyr::select(
-    subjectkey,
-    eventname,
-    imgincl_rsfmri_include) %>%
-  dplyr::mutate(
-    qcd_row_present = TRUE)
+#9. Confirm that every primary row belongs to the published sensitivity scaffold
+unexpected_primary_keys <- primary_repeated_measures_data %>%
+  dplyr::anti_join(
+    sensitivity_repeated_measures_data,
+    by = c("subjectkey", "eventname"))
 
-repeated_measures_qc_row_audit <-
-  published_rm_scaffold %>%
-  dplyr::select(
-    subjectkey,
-    eventname,
-    group) %>%
+if (nrow(unexpected_primary_keys) > 0) {
+  stop(
+    "The rebuilt primary cohort contains subject-event rows outside the ",
+    "published repeated-measures scaffold.")
+}
+
+#9.1 Confirm directly that every retained primary row has QC == 1
+primary_qc_check <- primary_repeated_measures_data %>%
+  dplyr::select(subjectkey, eventname) %>%
   dplyr::left_join(
-    qcd_key_presence,
-    by = c("subjectkey", "eventname")) %>%
-  dplyr::mutate(
-    qcd_row_present =
-      tidyr::replace_na(qcd_row_present, FALSE),
-    qc_status = dplyr::case_when(
-      qcd_row_present ~
-        "Present in corrected QC-filtered imaging data",
-      !qcd_row_present ~
-        "Absent from corrected QC-filtered imaging data",
-      TRUE ~ NA_character_))
+    direct_qc,
+    by = c("subjectkey", "eventname"))
 
-#8.1 Create a subject-level audit of baseline and follow-up row availability
-repeated_measures_qc_subject_audit <-
-  repeated_measures_qc_row_audit %>%
+if (
+  nrow(primary_qc_check) != nrow(primary_repeated_measures_data) ||
+    any(is.na(primary_qc_check$imgincl_rsfmri_include)) ||
+    any(primary_qc_check$imgincl_rsfmri_include != 1)) {
+  stop(
+    "At least one retained primary row does not have a direct rsfMRI QC flag ",
+    "equal to 1.")
+}
+
+#9.2 Validate corrected raw connectivity against the existing corrected
+# 149-variable subset wherever their subject-event rows overlap
+if (file.exists(qcd_rsfmri_path)) {
+  qcd_validation_source <- readr::read_csv(
+    qcd_rsfmri_path,
+    show_col_types = FALSE) %>%
+    dplyr::mutate(
+      subjectkey = trimws(as.character(subjectkey)),
+      eventname = trimws(as.character(eventname)),
+      interview_age =
+        suppressWarnings(as.numeric(interview_age)),
+      sex =
+        dplyr::na_if(trimws(as.character(sex)), ""),
+      site_name =
+        dplyr::na_if(trimws(as.character(site_name)), ""),
+      rsfmri_c_ngd_meanmotion =
+        suppressWarnings(as.numeric(rsfmri_c_ngd_meanmotion)),
+      dplyr::across(
+        dplyr::all_of(sig_dvs),
+        ~ suppressWarnings(as.numeric(.x)))) %>%
+    dplyr::select(
+      subjectkey,
+      eventname,
+      interview_age,
+      sex,
+      site_name,
+      rsfmri_c_ngd_meanmotion,
+      dplyr::all_of(sig_dvs))
+
+  qcd_validation_duplicates <- qcd_validation_source %>%
+    dplyr::count(subjectkey, eventname) %>%
+    dplyr::filter(n > 1)
+
+  if (nrow(qcd_validation_duplicates) > 0) {
+    stop(
+      "The existing corrected 149-variable subset contains duplicated ",
+      "subject-event rows.")
+  }
+
+  overlap_validation <- corrected_raw_fc %>%
+    dplyr::inner_join(
+      qcd_validation_source,
+      by = c("subjectkey", "eventname"),
+      suffix = c("_raw", "_qcd149"))
+
+  tolerance <- 1e-10
+
+  overlap_mismatches <- vapply(
+    sig_dvs,
+    function(dv) {
+      raw_values <- overlap_validation[[paste0(dv, "_raw")]]
+      qcd_values <- overlap_validation[[paste0(dv, "_qcd149")]]
+
+      sum(
+        !(
+          (is.na(raw_values) & is.na(qcd_values)) |
+            (!is.na(raw_values) &
+               !is.na(qcd_values) &
+               abs(raw_values - qcd_values) <= tolerance)))
+    },
+    integer(1))
+
+  if (any(overlap_mismatches > 0)) {
+    stop(
+      "Corrected raw connectivity values do not match the existing corrected ",
+      "149-variable subset for: ",
+      paste(names(overlap_mismatches)[overlap_mismatches > 0],
+        collapse = ", "))
+  }
+
+  eligible_row_keys <- primary_row_universe %>%
+    dplyr::filter(
+      row_qc_pass,
+      row_model_complete) %>%
+    dplyr::select(subjectkey, eventname)
+
+  eligible_rows_missing_from_qcd149 <- eligible_row_keys %>%
+    dplyr::anti_join(
+      qcd_validation_source,
+      by = c("subjectkey", "eventname"))
+
+  message(
+    "Eligible scaffold rows absent from the corrected 149-variable subset: ",
+    nrow(eligible_rows_missing_from_qcd149),
+    ". These rows are recovered from corrected raw data for the primary cohort.")
+}
+
+#9.2.1 Validate that scaffold model covariates agree with the existing
+# corrected imaging subset wherever both sources contain the row
+scaffold_qcd_covariate_overlap <- published_rm_scaffold %>%
+  dplyr::transmute(
+    subjectkey = trimws(as.character(subjectkey)),
+    eventname = trimws(as.character(eventname)),
+    interview_age_scaffold =
+      suppressWarnings(as.numeric(interview_age)),
+    sex_scaffold =
+      dplyr::na_if(trimws(as.character(sex)), ""),
+    site_name_scaffold =
+      dplyr::na_if(trimws(as.character(site_name)), ""),
+    meanmotion_scaffold =
+      suppressWarnings(as.numeric(rsfmri_c_ngd_meanmotion))) %>%
+  dplyr::inner_join(
+    qcd_validation_source %>%
+      dplyr::transmute(
+        subjectkey,
+        eventname,
+        interview_age_qcd = interview_age,
+        sex_qcd = sex,
+        site_name_qcd = site_name,
+        meanmotion_qcd = rsfmri_c_ngd_meanmotion),
+    by = c("subjectkey", "eventname"))
+
+numeric_mismatch_count <- function(x, y, tolerance = 1e-10) {
+  sum(
+    !(
+      (is.na(x) & is.na(y)) |
+        (!is.na(x) &
+           !is.na(y) &
+           abs(x - y) <= tolerance)))
+}
+
+character_mismatch_count <- function(x, y) {
+  x <- trimws(as.character(x))
+  y <- trimws(as.character(y))
+  
+  sum(
+    !(
+      (is.na(x) & is.na(y)) |
+        (!is.na(x) &
+           !is.na(y) &
+           x == y)))
+}
+
+scaffold_qcd_covariate_mismatches <- c(
+  interview_age = numeric_mismatch_count(
+    scaffold_qcd_covariate_overlap$interview_age_scaffold,
+    scaffold_qcd_covariate_overlap$interview_age_qcd),
+  sex = character_mismatch_count(
+    scaffold_qcd_covariate_overlap$sex_scaffold,
+    scaffold_qcd_covariate_overlap$sex_qcd),
+  site_name = character_mismatch_count(
+    scaffold_qcd_covariate_overlap$site_name_scaffold,
+    scaffold_qcd_covariate_overlap$site_name_qcd),
+  rsfmri_c_ngd_meanmotion = numeric_mismatch_count(
+    scaffold_qcd_covariate_overlap$meanmotion_scaffold,
+    scaffold_qcd_covariate_overlap$meanmotion_qcd))
+
+if (any(scaffold_qcd_covariate_mismatches > 0)) {
+  stop(
+    "Published scaffold covariates do not match the corrected imaging ",
+    "subset for: ",
+    paste(
+      names(scaffold_qcd_covariate_mismatches)[
+        scaffold_qcd_covariate_mismatches > 0],
+      collapse = ", "),
+    ". No output files were overwritten.")
+}
+
+message(
+  "Published scaffold covariates matched the corrected imaging subset ",
+  "across ",
+  nrow(scaffold_qcd_covariate_overlap),
+  " overlapping subject-event rows.")
+
+#9.3 If a prior primary output exists, ensure that rebuilding only adds
+# eligible rows and does not alter values for rows already present. This check
+# is idempotent: after the corrected output has been written, the existing and
+# rebuilt datasets should match completely.
+if (file.exists(primary_out_path)) {
+  existing_primary <- readr::read_csv(
+    primary_out_path,
+    show_col_types = FALSE) %>%
+    dplyr::mutate(
+      subjectkey = trimws(as.character(subjectkey)),
+      eventname = trimws(as.character(eventname)),
+      group = trimws(as.character(group)),
+      sex = trimws(as.character(sex)),
+      site_name = trimws(as.character(site_name)),
+      family_id = trimws(as.character(family_id)))
+
+  existing_rows_removed <- existing_primary %>%
+    dplyr::select(subjectkey, eventname) %>%
+    dplyr::anti_join(
+      primary_repeated_measures_data,
+      by = c("subjectkey", "eventname"))
+
+  if (nrow(existing_rows_removed) > 0) {
+    stop(
+      "The rebuilt primary cohort would remove ",
+      nrow(existing_rows_removed),
+      " rows from the existing primary output. No files were overwritten.")
+  }
+
+  comparison_columns <- c(
+    "group",
+    "interview_age",
+    "age_in_years",
+    "sex",
+    "site_name",
+    "family_id",
+    "rsfmri_c_ngd_meanmotion",
+    sig_dvs)
+
+  missing_comparison_columns <- setdiff(
+    comparison_columns,
+    names(existing_primary))
+
+  if (length(missing_comparison_columns) > 0) {
+    stop(
+      "The existing primary output is missing columns needed for the ",
+      "retained-row parity check: ",
+      paste(missing_comparison_columns, collapse = ", "))
+  }
+
+  shared_rows <- existing_primary %>%
+    dplyr::select(
+      subjectkey,
+      eventname,
+      dplyr::all_of(comparison_columns)) %>%
+    dplyr::inner_join(
+      primary_repeated_measures_data %>%
+        dplyr::select(
+          subjectkey,
+          eventname,
+          dplyr::all_of(comparison_columns)),
+      by = c("subjectkey", "eventname"),
+      suffix = c("_existing", "_rebuilt"))
+
+  if (nrow(shared_rows) != nrow(existing_primary)) {
+    stop(
+      "The retained-row parity check did not recover every existing primary ",
+      "row in the rebuilt cohort.")
+  }
+
+  numeric_comparison_columns <- c(
+    "interview_age",
+    "age_in_years",
+    "rsfmri_c_ngd_meanmotion",
+    sig_dvs)
+
+  character_comparison_columns <- setdiff(
+    comparison_columns,
+    numeric_comparison_columns)
+
+  retained_row_mismatch_counts <- c(
+    stats::setNames(
+      vapply(
+        numeric_comparison_columns,
+        function(variable_name) {
+          existing_values <- suppressWarnings(as.numeric(
+            shared_rows[[paste0(variable_name, "_existing")]]))
+          rebuilt_values <- suppressWarnings(as.numeric(
+            shared_rows[[paste0(variable_name, "_rebuilt")]]))
+
+          sum(
+            !(
+              (is.na(existing_values) & is.na(rebuilt_values)) |
+                (!is.na(existing_values) &
+                   !is.na(rebuilt_values) &
+                   abs(existing_values - rebuilt_values) <= 1e-10)))
+        },
+        integer(1)),
+      numeric_comparison_columns),
+    stats::setNames(
+      vapply(
+        character_comparison_columns,
+        function(variable_name) {
+          existing_values <- trimws(as.character(
+            shared_rows[[paste0(variable_name, "_existing")]]))
+          rebuilt_values <- trimws(as.character(
+            shared_rows[[paste0(variable_name, "_rebuilt")]]))
+
+          sum(
+            !(
+              (is.na(existing_values) & is.na(rebuilt_values)) |
+                (!is.na(existing_values) &
+                   !is.na(rebuilt_values) &
+                   existing_values == rebuilt_values)))
+        },
+        integer(1)),
+      character_comparison_columns))
+
+  if (any(retained_row_mismatch_counts > 0)) {
+    stop(
+      "Rebuilding the primary cohort changed retained-row values for: ",
+      paste(
+        names(retained_row_mismatch_counts)[
+          retained_row_mismatch_counts > 0],
+        collapse = ", "),
+      ". No files were overwritten.")
+  }
+
+  message(
+    "Existing primary rows retained with identical model values: ",
+    nrow(existing_primary),
+    ".")
+}
+
+
+## Aggregate, ID-Free QC Audits ##
+
+#10. Row-level aggregate QC audit. No subject IDs are written.
+repeated_measures_qc_row_audit <- primary_row_universe %>%
+  dplyr::mutate(
+    qc_status = dplyr::case_when(
+      is.na(imgincl_rsfmri_include) ~ "qc_flag_missing",
+      imgincl_rsfmri_include == 1 ~ "qc_flag_equal_1",
+      TRUE ~ "qc_flag_not_1"),
+    model_data_status = dplyr::if_else(
+      row_model_complete,
+      "model_data_complete",
+      "model_data_incomplete")) %>%
+  dplyr::count(
+    group,
+    eventname,
+    qc_status,
+    model_data_status,
+    name = "n_rows") %>%
+  dplyr::arrange(
+    group,
+    eventname,
+    qc_status,
+    model_data_status)
+
+#10.1 Subject-level aggregate QC audit. No subject IDs are written.
+subject_qc_status <- primary_row_universe %>%
   dplyr::group_by(subjectkey, group) %>%
   dplyr::summarise(
-    baseline_present_in_qcd = any(
-      eventname == "baseline_year_1_arm_1" &
-        qcd_row_present),
-    followup_present_in_qcd = any(
-      eventname == "2_year_follow_up_y_arm_1" &
-        qcd_row_present),
+    n_qc_passing_rows = sum(row_qc_pass),
+    n_complete_rows = sum(row_model_complete),
+    n_eligible_rows = sum(row_qc_pass & row_model_complete),
     retained_in_primary =
-      subjectkey %in%
+      subjectkey[[1]] %in%
       primary_repeated_measures_data$subjectkey,
-    .groups = "drop")
+    .groups = "drop") %>%
+  dplyr::mutate(
+    qc_pattern = dplyr::case_when(
+      n_qc_passing_rows == 2 ~ "two_qc_passing_rows",
+      n_qc_passing_rows == 1 ~ "one_qc_passing_row",
+      n_qc_passing_rows == 0 ~ "no_qc_passing_rows",
+      TRUE ~ "unexpected_qc_pattern"))
 
-#8.2 Create a sample-flow table for both analysis datasets
+repeated_measures_qc_subject_audit <- subject_qc_status %>%
+  dplyr::count(
+    group,
+    qc_pattern,
+    n_complete_rows,
+    n_eligible_rows,
+    retained_in_primary,
+    name = "n_subjects") %>%
+  dplyr::arrange(
+    group,
+    qc_pattern,
+    retained_in_primary)
+
+#10.2 Create a sample-flow table for both analysis datasets
 repeated_measures_sample_flow <-
   dplyr::bind_rows(
     sensitivity_repeated_measures_data %>%
@@ -680,17 +1004,23 @@ repeated_measures_sample_flow <-
           "Primary QC-complete cohort")) %>%
   dplyr::mutate(
     n_rows = n_subjects * 2L) %>%
-  dplyr::select(analysis_dataset, group, n_subjects, n_rows)
+  dplyr::select(
+    analysis_dataset,
+    group,
+    n_subjects,
+    n_rows)
 
 
 ## Final Validation ##
 
-#9. Validate the primary QC-complete dataset
+#11. Validate the independently derived primary QC-complete dataset.
+# The expected counts are regression checks applied only after eligibility
+# has been derived from the scaffold, raw data, direct QC, and completeness.
 validate_repeated_measures_dataset(
   data = primary_repeated_measures_data,
   dataset_name = "Primary QC-complete repeated measures dataset",
-  expected_n_subjects = 1710L,
-  expected_n_rows = 3420L,
+  expected_n_subjects = 1767L,
+  expected_n_rows = 3534L,
   expected_group_counts = expected_primary_group_counts,
   required_vars = c(
     "subjectkey",
@@ -698,7 +1028,7 @@ validate_repeated_measures_dataset(
     "group",
     primary_required_vars))
 
-#9.1 Validate the published-cohort sensitivity dataset
+#11.1 Validate the published-cohort sensitivity dataset
 validate_repeated_measures_dataset(
   data = sensitivity_repeated_measures_data,
   dataset_name =
@@ -715,32 +1045,28 @@ validate_repeated_measures_dataset(
 
 ## Output ##
 
-#10. Write the primary QC-complete repeated measures dataset
+#12. All validation occurs before any existing output is overwritten.
 readr::write_csv(
   primary_repeated_measures_data,
   primary_out_path)
 
-#10.1 Write the  published-cohort corrected sensitivity dataset
 readr::write_csv(
   sensitivity_repeated_measures_data,
   sensitivity_out_path)
 
-#10.2 Write the row-level QC audit
+# These existing audit filenames now contain aggregate ID-free summaries.
 readr::write_csv(
   repeated_measures_qc_row_audit,
   qc_row_audit_out_path)
 
-#10.3 Write the subject-level QC audit
 readr::write_csv(
   repeated_measures_qc_subject_audit,
   qc_subject_audit_out_path)
 
-#10.4 Write the repeated measures sample-flow table
 readr::write_csv(
   repeated_measures_sample_flow,
   sample_flow_out_path)
 
-#10.5 Print final output summary
 message(
   "Primary output written to: ",
   primary_out_path)

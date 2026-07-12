@@ -19,8 +19,8 @@ options(digits = 6, scipen = 999)
 emmeans::emm_options(
   lmer.df = "satterthwaite",
   lmerTest.limit = 5000,
-  pbkrtest.limit = 5000)
-
+  disable.lmerTest = FALSE,
+  disable.pbkrtest = TRUE)
 
 ## Paths ##
 
@@ -82,7 +82,7 @@ analysis_groups <- c(
 #2.3 Define expected subject counts for the primary cohort
 expected_primary_group_counts <- tibble::tibble(
   group = analysis_groups,
-  expected_n = c(1606L, 12L, 46L, 46L))
+  expected_n = c(1661L, 12L, 46L, 48L))
 
 #2.4 Define expected subject counts for the published-cohort sensitivity sample
 expected_sensitivity_group_counts <- tibble::tibble(
@@ -603,7 +603,7 @@ run_nominal_posthocs <- function(
     emm_grid <- emmeans::emmeans(
       fitted_model,
       ~ eventname | group)
-
+    
     emm_results <- as.data.frame(
       summary(
         emm_grid,
@@ -622,8 +622,7 @@ run_nominal_posthocs <- function(
       emm_grid,
       method = "revpairwise",
       by = "group",
-      adjust = "none",
-      lmer.df)
+      adjust = "none")
 
     within_group_results <- as.data.frame(
       summary(
@@ -1293,8 +1292,8 @@ create_demographic_outputs <- function(
 primary_data <- prepare_analysis_data(
   data_path = primary_data_path,
   dataset_name = "Primary QC-complete repeated measures dataset",
-  expected_n_subjects = 1710L,
-  expected_n_rows = 3420L,
+  expected_n_subjects = 1767L,
+  expected_n_rows = 3534L,
   expected_group_counts = expected_primary_group_counts)
 
 #6.1 Prepare the exact published-cohort sensitivity dataset

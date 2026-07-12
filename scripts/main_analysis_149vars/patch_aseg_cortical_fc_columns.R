@@ -21,6 +21,20 @@ patched_out_path <- "./data_processed/main_analysis/subset_qcd_imaging_data.csv"
 # Set path to audit report (to write)
 validation_path <- "./data_processed/main_analysis/gpnet_aseg_rename_validation_report.csv"
 
+# This patch intentionally preserves the exact row universe and non-imaging
+# schema of base_subset_path. It corrects values/labels for those rows only.
+# Longitudinal eligibility must therefore be determined independently from
+# the published repeated-measures scaffold, raw rsfMRI data, and direct QC.
+if (normalizePath(base_subset_path, mustWork = TRUE) ==
+    normalizePath(patched_out_path, mustWork = FALSE)) {
+  stop("The immutable base subset and patched output paths must differ.")
+}
+
+if (normalizePath(raw_path, mustWork = TRUE) ==
+    normalizePath(patched_out_path, mustWork = FALSE)) {
+  stop("The raw rsfMRI input and patched output paths must differ.")
+}
+
 # Back up the previous output if present with a timestamp
 if (file.exists(patched_out_path)) {
   file.copy(
@@ -72,9 +86,20 @@ raw <- raw %>%
 raw_dups <- raw %>% count(subjectkey, eventname) %>% filter(n > 1)
 if (nrow(raw_dups) > 0) stop("Raw ABCD rsfMRI data has duplicate subjectkey+eventname rows; cannot safely join.")  
 
-# Rename Raw ABCD rsfMRI data headers from OLD to CORRECT once
-nm <- old_to_correct[names(raw)] 
+# Rename Raw ABCD rsfMRI data headers from OLD to CORRECT once.
+# The raw file is freshly read on every run, so this cannot double-rename an
+# already patched output.
+nm <- old_to_correct[names(raw)]
 names(raw)[!is.na(nm)] <- nm[!is.na(nm)]
+
+duplicated_corrected_headers <- unique(
+  names(raw)[duplicated(names(raw))])
+
+if (length(duplicated_corrected_headers) > 0) {
+  stop(
+    "Correcting the raw rsfMRI headers produced duplicated names: ",
+    paste(duplicated_corrected_headers, collapse = ", "))
+}
 
 # Read in the base subset of imaging data that defines the column schema to use
 base <- read_csv(base_subset_path, show_col_types = FALSE)
@@ -86,14 +111,32 @@ base <- base %>%
     subjectkey = trimws(as.character(subjectkey)),
     eventname = trimws(as.character(eventname)))
 
+# Confirm that the immutable base has unique subject-event keys
+base_dups <- base %>%
+  dplyr::count(subjectkey, eventname) %>%
+  dplyr::filter(n > 1)
+
+if (nrow(base_dups) > 0) {
+  stop(
+    "The immutable base subset contains duplicated subjectkey+eventname rows.")
+}
+
 # Build merging key alignment vector
-row_idx <- match(paste(base$subjectkey, base$eventname), paste(raw$subjectkey,  raw$eventname))
+row_idx <- match(
+  paste(base$subjectkey, base$eventname),
+  paste(raw$subjectkey, raw$eventname))
 
 # Report merging key match rate to check for total rows in base data vs matched rows
-n_total <- nrow(base) 
+n_total <- nrow(base)
 n_match <- sum(!is.na(row_idx))
 message(sprintf("Key alignment: matched %d / %d rows (%.1f%%).",
                 n_match, n_total, 100 * n_match / max(n_total, 1)))
+
+if (n_match != n_total) {
+  stop(
+    "Not every immutable base row matched the corrected raw rsfMRI source. ",
+    "No patched output was written.")
+}
 
 # Initialize patched data with base subset
 patched <- base
@@ -228,13 +271,48 @@ recommended_imaging <- recommended_imaging %>%
   dplyr::mutate(
     src_subject_id = trimws(as.character(src_subject_id)),
     eventname = trimws(as.character(eventname)),
-    imgincl_rsfmri_include = suppressWarnings(as.numeric(imgincl_rsfmri_include)))
+    imgincl_rsfmri_include =
+      suppressWarnings(as.numeric(imgincl_rsfmri_include)))
 
-# Attach QC flags to patched data
+recommended_imaging_dups <- recommended_imaging %>%
+  dplyr::count(src_subject_id, eventname) %>%
+  dplyr::filter(n > 1)
+
+if (nrow(recommended_imaging_dups) > 0) {
+  stop(
+    "The direct rsfMRI QC source contains duplicated subject-event rows.")
+}
+
+# Avoid suffixing or silently retaining a stale QC variable if the immutable
+# base already happens to contain one.
 patched <- patched %>%
-  dplyr::left_join(recommended_imaging, by = c("subjectkey" = "src_subject_id", "eventname" = "eventname"))
+  dplyr::select(-dplyr::any_of("imgincl_rsfmri_include")) %>%
+  dplyr::left_join(
+    recommended_imaging,
+    by = c(
+      "subjectkey" = "src_subject_id",
+      "eventname" = "eventname"))
 
-# Write final patched dataset
+# Confirm that patching preserved the immutable base row universe exactly
+if (nrow(patched) != nrow(base)) {
+  stop("Attaching QC changed the number of rows in the patched dataset.")
+}
+
+base_keys <- paste(base$subjectkey, base$eventname)
+patched_keys <- paste(patched$subjectkey, patched$eventname)
+
+if (!identical(base_keys, patched_keys)) {
+  stop(
+    "Patching changed the order or identity of the immutable base rows.")
+}
+
+message(
+  "Patched output preserves exactly ",
+  nrow(base),
+  " rows from the immutable base subset. It must not be used as the ",
+  "row-universe source for longitudinal QC eligibility.")
+
+# Write final patched dataset only after all structural checks pass
 readr::write_csv(patched, patched_out_path)
 
 
@@ -258,7 +336,12 @@ base_cols <- setdiff(names(base), c("subjectkey","eventname"))
 
 # Define tolerance and numeric equality helpers for audit
 tol  <- 1e-10; to_num <- function(x) suppressWarnings(as.numeric(x))
-all_equal_num <- function(a, b) all(abs(a - b) <= tol | (is.na(a) & is.na(b)), na.rm = TRUE)
+all_equal_num <- function(a, b) {
+  equal_values <-
+    (is.na(a) & is.na(b)) |
+    (!is.na(a) & !is.na(b) & abs(a - b) <= tol)
+  all(equal_values)
+}
 
 # Decide sources and audit the validity of them + the resulting data merged into the new df
 src_info <- lapply(base_cols, function(b) decide_src(b, old_to_correct, names(raw), correct_set))
