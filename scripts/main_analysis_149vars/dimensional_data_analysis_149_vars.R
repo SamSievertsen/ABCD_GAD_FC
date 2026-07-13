@@ -1,1232 +1,1256 @@
 ## Setup ##
 
-# Load packages for loading, wrangling, mutating, and visualizing data and set environmental variables
+# Load packages for mixed modeling, inference, multiplicity correction, and output
 library(dplyr)
-library(ggplot2)
-library(writexl)
-library(readxl)
-library(stringr)
-library(data.table)
+library(readr)
 library(tidyr)
 library(purrr)
+library(stringr)
 library(lme4)
 library(lmerTest)
-library(polycor)
-library(Cairo)
-library(viridis)
-library(patchwork)
-library(modelbased)
-library(cowplot)
-suppressWarnings({library(gridExtra)})
-suppressWarnings({library(sjPlot)})
-suppressWarnings({library(sjmisc)})
-suppressWarnings({library(sjlabelled)})
-options(scipen = 999, digits = 6)
+library(car)
+library(emmeans)
 
-# Read in analysis data
-dimensional_analysis_data <- read.csv("./data_processed/main_analysis/dimensional_analysis_data.csv")
+options(
+  digits = 8,
+  scipen = 999,
+  contrasts = c("contr.treatment", "contr.poly"))
 
-
-## Data Wrangling ##
-
-#1. Change data values to their required type for analysis
-#1.1 Change rsfMRI and CBCL/BPM vaues to numeric 
-dimensional_analysis_data <- dimensional_analysis_data %>%
-  mutate_at(vars(10:21), as.numeric)
-
-#1.2 Factor type values
-
-#1.21 Subject ID
-dimensional_analysis_data$subjectkey <- as.factor(dimensional_analysis_data$subjectkey)
-
-#1.22 Family ID
-dimensional_analysis_data$family_id <- as.factor(dimensional_analysis_data$family_id)
-
-#1.23 Sex
-dimensional_analysis_data$sex <- as.factor(dimensional_analysis_data$sex)
-
-#1.24 Assessment Timepoint
-dimensional_analysis_data$eventname <- as.factor(dimensional_analysis_data$eventname)
-
-#1.25 Scanner site (site name)
-dimensional_analysis_data$site_name <- as.factor(dimensional_analysis_data$site_name)
-
-#1.26 Analysis group
-dimensional_analysis_data$analysis_group <- as.factor(dimensional_analysis_data$analysis_group)
+emmeans::emm_options(
+  lmer.df = "satterthwaite",
+  lmerTest.limit = 5000,
+  disable.lmerTest = FALSE,
+  disable.pbkrtest = TRUE)
 
 
-#2. Create additional dataframes for GAD specific and HC specific analyses
-#2.1 GAD group data
-#2.11 Subset the dimensional analysis data to just include the GAD group
-gad_group_dimensional_analysis_data <- subset(dimensional_analysis_data, analysis_group == "GAD")
+## Paths ##
 
-#2.12 Ensure the relevant variables are the correct data type
-#2.121 Assessment timepoint
-gad_group_dimensional_analysis_data$eventname <- as.factor(gad_group_dimensional_analysis_data$eventname)
+dimensional_data_path <- "./data_processed/main_analysis/dimensional_analysis_data.csv"
 
-#2.122 Sex
-gad_group_dimensional_analysis_data$sex <- as.factor(gad_group_dimensional_analysis_data$sex)
+metric_manifest_path <- "./results/results_149_vars/repeated_measures_dv_manifest_149vars.csv"
 
+results_dir <- "./results/results_149_vars/dimensional"
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
-#2.2 HC group data
-#2.21 Subset the dimensional analysis data to just include the HC group
-hc_group_dimensional_analysis_data <- subset(dimensional_analysis_data, analysis_group == "control")
-
-#2.12 Ensure the relevant variables are the correct data type
-#2.121 Assessment timepoint
-hc_group_dimensional_analysis_data$eventname <- as.factor(hc_group_dimensional_analysis_data$eventname)
-
-#2.122 Sex
-hc_group_dimensional_analysis_data$sex <- as.factor(hc_group_dimensional_analysis_data$sex)
+cbcl_merged_out_path <-
+  file.path(results_dir, "cbcl_merged_intx_analysis_results.csv")
+cbcl_gad_out_path <-
+  file.path(results_dir, "cbcl_gad_group_analysis_results.csv")
+cbcl_hc_out_path <-
+  file.path(results_dir, "cbcl_hc_group_analysis_results.csv")
+bpm_merged_out_path <-
+  file.path(results_dir, "bpm_merged_group_results.csv")
+bpm_gad_out_path <-
+  file.path(results_dir, "bpm_gad_group_results.csv")
+bpm_hc_out_path <-
+  file.path(results_dir, "bpm_control_group_results.csv")
 
 
-#3. Create a copy of the imaging CBCL data for plotting 
-dimensional_analysis_data_for_plotting <- dimensional_analysis_data
+## Constants ##
 
-#3.11 Alter the analysis group variable to match paper formatting
-#3.12 Change the variable to character type
-dimensional_analysis_data_for_plotting$analysis_group <- as.character(dimensional_analysis_data_for_plotting$analysis_group)
+analysis_dataset <- "primary_current_complete_case"
+dataset_label <- "Primary current complete-case dimensional cohort"
 
-#3.13 Change the "control" values to "HC" values for aesthetic purposes
-dimensional_analysis_data_for_plotting$analysis_group[dimensional_analysis_data_for_plotting$analysis_group == "control"] <- "HC"
+analysis_events <- c(
+  "baseline_year_1_arm_1",
+  "2_year_follow_up_y_arm_1")
 
-#3.14 Change the analysis group variable back to factor type
-dimensional_analysis_data_for_plotting$analysis_group <- as.factor(dimensional_analysis_data_for_plotting$analysis_group)
+analysis_groups <- c("control", "GAD")
 
-#3.15 Set the renamed HC group values as the reference level
-dimensional_analysis_data_for_plotting$analysis_group <- relevel(dimensional_analysis_data_for_plotting$analysis_group, ref = "HC")
+cbcl_vars <- c(
+  "cbcl_scr_syn_anxdep_t",
+  "cbcl_scr_syn_internal_t",
+  "cbcl_scr_syn_external_t",
+  "cbcl_scr_dsm5_anxdisord_t")
+
+bpm_vars <- c(
+  "bpm_y_scr_internal_t",
+  "bpm_y_scr_external_t")
+
+expected_cbcl_n <- 3146L
+expected_cbcl_group_counts <- tibble::tribble(
+  ~analysis_group, ~expected_n,
+  "control", 2989L,
+  "GAD", 157L)
+
+expected_cbcl_group_event_counts <- tibble::tribble(
+  ~analysis_group, ~eventname, ~expected_n,
+  "control", "baseline_year_1_arm_1", 2003L,
+  "control", "2_year_follow_up_y_arm_1", 986L,
+  "GAD", "baseline_year_1_arm_1", 98L,
+  "GAD", "2_year_follow_up_y_arm_1", 59L)
 
 
-## CBCL Data Analysis ## 
+## Connectivity Outcome Manifest and Labels ##
 
-#1. Test whether symptom level between groups is associated with connectivity 
-#1.11 Create a columns range for the CBCL columns
-cbcl_col_range <- 16:19
-connectivity_col_range <- 11:15
+metric_manifest <- readr::read_csv(
+  metric_manifest_path,
+  show_col_types = FALSE)
 
-#1.12 Create an empty dataframe to store analysis values
-cbcl_analysis_symptom_group_int_results_df <- data.frame(
-  cbcl_column_name = character(),
-  column_name = character(),
-  IV = character(),
-  estimate = numeric(),
-  std_error = numeric(),
-  t_value = numeric(),
-  f_value = numeric(),
-  df = numeric(),
-  residual_df = numeric(),
-  p_value = numeric(),
-  stringsAsFactors = FALSE)
+if (!all(c("analysis_order", "column_name") %in% names(metric_manifest))) {
+  stop("The connectivity manifest lacks analysis_order or column_name.")
+}
 
-#1.13 Run the lm for each combination of CBCL metric and connectivity metric
-for (cbcl_col_num in cbcl_col_range) {
-  
-  #1.131 Get the CBCL metric column name
-  cbcl_col_name <- colnames(dimensional_analysis_data)[cbcl_col_num]
-  for (connectivity_col_num in connectivity_col_range) {
-    
-    #1.132 Get the connectivity metric column name
-    connectivity_col_name <- colnames(dimensional_analysis_data)[connectivity_col_num]
-    print(paste("Modeling", connectivity_col_name, "~", cbcl_col_name))
-    
-    #1.133 Run the linear regression model
-    cbcl_analysis_symptom_group_int_mlm_analysis <- lmerTest::lmer(formula = paste0(connectivity_col_name, " ~ ", cbcl_col_name, "*analysis_group + rsfmri_c_ngd_meanmotion + sex + eventname + (1|site_name) + (1|family_id)"), na.action = na.omit, data = dimensional_analysis_data)
-    
-    #1.134 Run the ANCOVA Model
-    cbcl_analysis_symptom_group_int_ANCOVA_analysis <- car::Anova(cbcl_analysis_symptom_group_int_mlm_analysis, type = "III", test.statistic = "F")
-    
-    #1.135 Loop through fixed effects in the model
-    for (iv_name in row.names(cbcl_analysis_symptom_group_int_ANCOVA_analysis)) {
-      summary_lm <- summary(cbcl_analysis_symptom_group_int_mlm_analysis)
-      if (iv_name == cbcl_col_name || iv_name == "rsfmri_c_ngd_meanmotion") {
-        
-        #1.1351 For continuous variables (cbcl_col_name, rsfmri_c_ngd_meanmotion)
-        matched_row <- grep(paste0("^", iv_name, "$"), rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          estimate <- summary_lm$coefficients[matched_row, "Estimate"]
-          std_error <- summary_lm$coefficients[matched_row, "Std. Error"]
-          t_value <- summary_lm$coefficients[matched_row, "t value"]
-          p_value <- summary_lm$coefficients[matched_row, "Pr(>|t|)"]
-          cbcl_analysis_symptom_group_int_results_df <- rbind(
-            cbcl_analysis_symptom_group_int_results_df,
-            data.frame(cbcl_column_name = cbcl_col_name, 
-              column_name = connectivity_col_name,
-              IV = iv_name,
-              estimate = estimate,
-              std_error = std_error,
-              t_value = t_value,
-              f_value = NA,
-              df = NA,
-              residual_df = NA,
-              p_value = p_value))
-        }
-      } else {
-        
-        #1.1352 For categorical variables (analysis_group, analysis_group*cbcl_col_name, sex, eventname)
-        matched_row <- grep(iv_name, rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          f_value <- cbcl_analysis_symptom_group_int_ANCOVA_analysis[iv_name, "F"]
-          df <- cbcl_analysis_symptom_group_int_ANCOVA_analysis[iv_name, "Df"]
-          residual_df <- cbcl_analysis_symptom_group_int_ANCOVA_analysis[iv_name, "Df.res"]
-          p_value <- cbcl_analysis_symptom_group_int_ANCOVA_analysis[iv_name, "Pr(>F)"]
-          cbcl_analysis_symptom_group_int_results_df <- rbind(
-            cbcl_analysis_symptom_group_int_results_df,
-            data.frame(cbcl_column_name = cbcl_col_name, 
-              column_name = connectivity_col_name,
-              IV = iv_name,
-              estimate = NA,
-              std_error = NA,
-              t_value = NA,
-              f_value = f_value,
-              df = df,
-              residual_df = residual_df,
-              p_value = p_value))
-        }
-      }
+metric_manifest <- metric_manifest %>%
+  dplyr::transmute(
+    analysis_order = suppressWarnings(as.integer(analysis_order)),
+    column_name = trimws(as.character(column_name))) %>%
+  dplyr::arrange(analysis_order)
+
+if (
+  nrow(metric_manifest) != 20L ||
+    dplyr::n_distinct(metric_manifest$analysis_order) != 20L ||
+    dplyr::n_distinct(metric_manifest$column_name) != 20L ||
+    any(is.na(metric_manifest$analysis_order)) ||
+    any(is.na(metric_manifest$column_name))) {
+  stop("The outcome manifest must contain 20 unique outcomes.")
+}
+
+if (!identical(metric_manifest$analysis_order, seq_len(20L))) {
+  stop("The outcome manifest analysis_order must be exactly 1 through 20.")
+}
+
+metric_labels <- tibble::tribble(
+  ~column_name, ~DV_Summary,
+  "rsfmri_cor_ngd_au_scs_thplh", "AN - Left Thalamus",
+  "rsfmri_cor_ngd_vta_scs_plrh", "VAN - Right Pallidum",
+  "rsfmri_cor_ngd_smh_scs_plrh", "SMHN - Right Pallidum",
+  "rsfmri_cor_ngd_au_scs_thprh", "AN - Right Thalamus",
+  "rsfmri_cor_ngd_au_scs_cdelh", "AN - Left Caudate",
+  "rsfmri_cor_ngd_au_scs_ptlh", "AN - Left Putamen",
+  "rsfmri_c_ngd_ad_ngd_sa", "AN - SN",
+  "rsfmri_cor_ngd_au_scs_pllh", "AN - Left Pallidum",
+  "rsfmri_cor_ngd_smh_scs_pllh", "SMHN - Left Pallidum",
+  "rsfmri_cor_ngd_au_scs_plrh", "AN - Right Pallidum",
+  "rsfmri_c_ngd_vta_ngd_vta", "Within-VAN",
+  "rsfmri_cor_ngd_smh_scs_thplh", "SMHN - Left Thalamus",
+  "rsfmri_cor_ngd_smh_scs_thprh", "SMHN - Right Thalamus",
+  "rsfmri_cor_ngd_vta_scs_ptrh", "VAN - Right Putamen",
+  "rsfmri_cor_ngd_vta_scs_thplh", "VAN - Left Thalamus",
+  "rsfmri_cor_ngd_vta_scs_ptlh", "VAN - Left Putamen",
+  "rsfmri_cor_ngd_smh_scs_cderh", "SMHN - Right Caudate",
+  "rsfmri_cor_ngd_au_scs_cderh", "AN - Right Caudate",
+  "rsfmri_cor_ngd_au_scs_ptrh", "AN - Right Putamen",
+  "rsfmri_cor_ngd_smh_scs_cdelh", "SMHN - Left Caudate")
+
+metric_manifest <- metric_manifest %>%
+  dplyr::left_join(metric_labels, by = "column_name")
+
+if (any(is.na(metric_manifest$DV_Summary))) {
+  stop(
+    "Missing human-readable labels for: ",
+    paste(
+      metric_manifest$column_name[is.na(metric_manifest$DV_Summary)],
+      collapse = ", "),
+    ".")
+}
+
+connectivity_vars <- metric_manifest$column_name
+
+
+## Helper Functions ##
+
+clean_character <- function(x) {
+  dplyr::na_if(trimws(as.character(x)), "")
+}
+
+assert_columns <- function(data, required, dataset_name) {
+  missing_columns <- setdiff(required, names(data))
+
+  if (length(missing_columns) > 0) {
+    stop(
+      dataset_name,
+      " is missing required columns: ",
+      paste(missing_columns, collapse = ", "),
+      ".")
+  }
+}
+
+assert_unique_keys <- function(data, dataset_name) {
+  duplicate_keys <- data %>%
+    dplyr::count(subjectkey, eventname, name = "n_rows") %>%
+    dplyr::filter(n_rows > 1)
+
+  if (nrow(duplicate_keys) > 0) {
+    stop(
+      dataset_name,
+      " contains duplicated subjectkey-eventname rows.")
+  }
+}
+
+assert_complete <- function(data, variables, dataset_name) {
+  missing_counts <- vapply(
+    variables,
+    function(variable) {
+      values <- data[[variable]]
+      sum(
+        is.na(values) |
+          (is.character(values) & trimws(values) == ""))
+    },
+    integer(1))
+
+  if (any(missing_counts > 0)) {
+    print(missing_counts[missing_counts > 0])
+    stop(dataset_name, " contains incomplete required model data.")
+  }
+}
+
+assert_exact_counts <- function(
+    data,
+    expected_counts,
+    grouping_variables,
+    dataset_name) {
+
+  observed_counts <- data %>%
+    dplyr::group_by(
+      dplyr::across(dplyr::all_of(grouping_variables))) %>%
+    dplyr::summarise(
+      observed_n = dplyr::n(),
+      .groups = "drop")
+
+  count_check <- expected_counts %>%
+    dplyr::full_join(
+      observed_counts,
+      by = grouping_variables) %>%
+    dplyr::mutate(
+      expected_n = tidyr::replace_na(expected_n, 0L),
+      observed_n = tidyr::replace_na(observed_n, 0L),
+      matches = expected_n == observed_n)
+
+  if (any(!count_check$matches)) {
+    print(count_check)
+    stop(dataset_name, " does not have the expected counts.")
+  }
+
+  invisible(count_check)
+}
+
+get_numeric_column <- function(data, candidates) {
+  matching_columns <- intersect(candidates, names(data))
+
+  if (length(matching_columns) == 0) {
+    return(rep(NA_real_, nrow(data)))
+  }
+
+  suppressWarnings(as.numeric(data[[matching_columns[[1]]]]))
+}
+
+normalize_term <- function(x) {
+  x %>%
+    stringr::str_replace_all("`", "") %>%
+    stringr::str_replace_all("\\s", "")
+}
+
+safe_formula <- function(outcome, rhs) {
+  stats::as.formula(paste(outcome, "~", rhs))
+}
+
+has_text <- function(x) {
+  !is.na(x) & nzchar(trimws(as.character(x)))
+}
+
+# Fit a mixed model while retaining warnings and errors for auditability.
+fit_lmer_safe <- function(formula, data) {
+  model_warnings <- character()
+  model_error <- NA_character_
+
+  model <- tryCatch(
+    withCallingHandlers(
+      lmerTest::lmer(
+        formula = formula,
+        data = data,
+        REML = TRUE,
+        na.action = na.omit),
+      warning = function(warning_condition) {
+        model_warnings <<- c(
+          model_warnings,
+          conditionMessage(warning_condition))
+        invokeRestart("muffleWarning")
+      }),
+    error = function(error_condition) {
+      model_error <<- conditionMessage(error_condition)
+      NULL
+    })
+
+  list(
+    model = model,
+    warnings = if (length(model_warnings) == 0) {
+      NA_character_
+    } else {
+      paste(unique(model_warnings), collapse = " | ")
+    },
+    error = model_error)
+}
+
+extract_diagnostics <- function(fit_result, data) {
+  model <- fit_result$model
+
+  if (is.null(model)) {
+    return(tibble::tibble(
+      n_observations = NA_integer_,
+      n_subjects = dplyr::n_distinct(data$subjectkey),
+      singular = NA,
+      optimizer_code = NA_character_,
+      convergence_messages = NA_character_,
+      warnings = fit_result$warnings,
+      error = fit_result$error,
+      AIC = NA_real_,
+      BIC = NA_real_,
+      logLik = NA_real_))
+  }
+
+  convergence_messages <- model@optinfo$conv$lme4$messages
+  convergence_messages <- if (is.null(convergence_messages)) {
+    NA_character_
+  } else {
+    paste(convergence_messages, collapse = " | ")
+  }
+
+  optimizer_code <- model@optinfo$conv$opt
+  optimizer_code <- if (is.null(optimizer_code)) {
+    NA_character_
+  } else {
+    paste(optimizer_code, collapse = " | ")
+  }
+
+  tibble::tibble(
+    n_observations = stats::nobs(model),
+    n_subjects = dplyr::n_distinct(data$subjectkey),
+    singular = lme4::isSingular(model, tol = 1e-4),
+    optimizer_code = optimizer_code,
+    convergence_messages = convergence_messages,
+    warnings = fit_result$warnings,
+    error = fit_result$error,
+    AIC = stats::AIC(model),
+    BIC = stats::BIC(model),
+    logLik = as.numeric(stats::logLik(model)))
+}
+
+extract_coefficient <- function(model, term) {
+  empty_result <- tibble::tibble(
+    estimate = NA_real_,
+    std_error = NA_real_,
+    df = NA_real_,
+    t_value = NA_real_,
+    p_value = NA_real_,
+    lower_ci = NA_real_,
+    upper_ci = NA_real_)
+
+  if (is.null(model)) {
+    return(empty_result)
+  }
+
+  coefficient_table <- as.data.frame(summary(model)$coefficients)
+  coefficient_table$term <- rownames(coefficient_table)
+  matched_row <- which(coefficient_table$term == term)
+
+  if (length(matched_row) != 1L) {
+    return(empty_result)
+  }
+
+  row <- coefficient_table[matched_row, , drop = FALSE]
+
+  estimate <- get_numeric_column(row, "Estimate")[[1]]
+  std_error <- get_numeric_column(row, c("Std. Error", "Std..Error"))[[1]]
+  df <- get_numeric_column(row, "df")[[1]]
+  t_value <- get_numeric_column(row, c("t value", "t.value"))[[1]]
+  p_value <- get_numeric_column(row, c("Pr(>|t|)", "Pr...t.."))[[1]]
+
+  critical_value <- if (is.finite(df)) {
+    stats::qt(0.975, df = df)
+  } else {
+    stats::qnorm(0.975)
+  }
+
+  tibble::tibble(
+    estimate = estimate,
+    std_error = std_error,
+    df = df,
+    t_value = t_value,
+    p_value = p_value,
+    lower_ci = estimate - critical_value * std_error,
+    upper_ci = estimate + critical_value * std_error)
+}
+
+extract_anova_term <- function(model, term_candidates, type) {
+  empty_result <- tibble::tibble(
+    f_value = NA_real_,
+    numerator_df = NA_real_,
+    denominator_df = NA_real_,
+    p_value = NA_real_)
+
+  if (is.null(model)) {
+    return(empty_result)
+  }
+
+  anova_object <- tryCatch(
+    car::Anova(
+      model,
+      type = type,
+      test.statistic = "F"),
+    error = function(error_condition) NULL)
+
+  if (is.null(anova_object)) {
+    return(empty_result)
+  }
+
+  anova_table <- tibble::as_tibble(
+    as.data.frame(anova_object),
+    rownames = "term") %>%
+    dplyr::mutate(normalized_term = normalize_term(term))
+
+  normalized_candidates <- normalize_term(term_candidates)
+  matched_row <- which(
+    anova_table$normalized_term %in% normalized_candidates)
+
+  if (length(matched_row) != 1L) {
+    return(empty_result)
+  }
+
+  row <- anova_table[matched_row, , drop = FALSE]
+
+  tibble::tibble(
+    f_value = get_numeric_column(
+      row,
+      c("F", "F value", "F.value"))[[1]],
+    numerator_df = get_numeric_column(
+      row,
+      c("Df", "num Df", "NumDF"))[[1]],
+    denominator_df = get_numeric_column(
+      row,
+      c("Df.res", "den Df", "DenDF"))[[1]],
+    p_value = get_numeric_column(
+      row,
+      c("Pr(>F)", "Pr..F."))[[1]])
+}
+
+# Extract Control and GAD symptom slopes and their GAD-minus-Control difference
+# from the published interaction model
+extract_group_trends <- function(model, symptom) {
+  empty_slope <- tibble::tibble(
+    estimate = NA_real_,
+    std_error = NA_real_,
+    df = NA_real_,
+    lower_ci = NA_real_,
+    upper_ci = NA_real_,
+    t_value = NA_real_,
+    p_value = NA_real_)
+
+  empty_result <- list(
+    control = empty_slope,
+    gad = empty_slope,
+    difference = empty_slope)
+
+  if (is.null(model)) {
+    return(empty_result)
+  }
+
+  tryCatch({
+    trends <- emmeans::emtrends(
+      model,
+      ~ analysis_group,
+      var = symptom)
+
+    trend_summary <- as.data.frame(
+      summary(
+        trends,
+        infer = c(TRUE, TRUE)))
+
+    trend_column <- names(trend_summary)[
+      stringr::str_detect(names(trend_summary), "\\.trend$")]
+
+    if (length(trend_column) != 1L) {
+      stop("Could not identify the emtrends slope column.")
     }
-  }
-}
 
-#1.21 Subset the data based on the relevant IV variable strings for FDR correction of p values
-#1.211 Subset the data for interaction terms containing ":analysis_group" in the IV variable.
-cbcl_analysis_symptom_group_int_p_adjust_subset <- subset(cbcl_analysis_symptom_group_int_results_df, grepl(":analysis_group", IV))
+    trend_summary <- trend_summary %>%
+      dplyr::transmute(
+        analysis_group = as.character(analysis_group),
+        estimate = suppressWarnings(as.numeric(.data[[trend_column]])),
+        std_error = suppressWarnings(as.numeric(SE)),
+        df = suppressWarnings(as.numeric(df)),
+        lower_ci = suppressWarnings(as.numeric(lower.CL)),
+        upper_ci = suppressWarnings(as.numeric(upper.CL)),
+        t_value = suppressWarnings(as.numeric(t.ratio)),
+        p_value = suppressWarnings(as.numeric(p.value)))
 
-#1.212 Subset the data for main effects containing "cbcl_" in the IV variable.
-cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset <- subset(cbcl_analysis_symptom_group_int_results_df, grepl("cbcl_", IV))
+    control_row <- trend_summary %>%
+      dplyr::filter(analysis_group == "control") %>%
+      dplyr::select(-analysis_group)
 
-#1.213 Further filter the CBCL subset to include only rows where the "f_value" is NA.
-cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset <- cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset[is.na(cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset$f_value), ]
+    gad_row <- trend_summary %>%
+      dplyr::filter(analysis_group == "GAD") %>%
+      dplyr::select(-analysis_group)
 
-#1.221 Create a new column conducting an FDR (p adjustment) on the derived p values
-#1.2211 Interaction term p values
-cbcl_analysis_symptom_group_int_p_adjust_subset$p_adjusted <- p.adjust(cbcl_analysis_symptom_group_int_p_adjust_subset$p_value, method = "fdr")
-
-#1.2212 Main effect p values
-cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset$p_adjusted <- p.adjust(cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset$p_value, method = "fdr")
-
-#1.222 Merge the FDR corrected p-values together
-cbcl_analysis_symptom_group_int_p_adjust_subset <- full_join(cbcl_analysis_symptom_group_int_p_adjust_subset, cbcl_analysis_symptom_group_int_cbcl_p_adjust_subset)
-
-#1.23 Create a new dataframe wherein only significant results are stored
-cbcl_analysis_symptom_group_int_significant_results <- subset(cbcl_analysis_symptom_group_int_p_adjust_subset, p_adjusted <= 0.05)
-
-#1.24 Join the FDR corrected p-values with the rest of the model results 
-cbcl_analysis_symptom_group_int_merged_adjusted_p_values <- left_join(cbcl_analysis_symptom_group_int_results_df, cbcl_analysis_symptom_group_int_p_adjust_subset)
-
-#1.25 Remove all numbers from the strings in the column IV (for later merging purposes)
-cbcl_analysis_symptom_group_int_merged_adjusted_p_values$IV <- gsub("\\d+", "", cbcl_analysis_symptom_group_int_merged_adjusted_p_values$IV)
-
-#1.261 Rename IV values to match paper's format (e.g., CBCL Score, Diagnosis Group, FD Motion, Sex, Timepoint)
-cbcl_analysis_symptom_group_int_merged_adjusted_p_values <- cbcl_analysis_symptom_group_int_merged_adjusted_p_values %>%
-  mutate(
-    IV = case_when(
-      grepl("^cbcl_", IV) & !grepl("analysis_group", IV) ~ "CBCL Score",
-      IV == "analysis_group" ~ "Diagnosis Group",
-      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
-      IV == "sex" ~ "Sex",
-      IV == "eventname" ~ "Timepoint",
-      grepl("^cbcl_.*:analysis_group", IV) ~ "CBCL Score*Diagnosis Group Interaction",
-      TRUE ~ IV))
-
-#1.262 Remove rows with Intercept values
-cbcl_analysis_symptom_group_int_merged_adjusted_p_values <- cbcl_analysis_symptom_group_int_merged_adjusted_p_values[cbcl_analysis_symptom_group_int_merged_adjusted_p_values$IV != "(Intercept)", ]
-
-#1.27 Pivot the full model results to be in wide format
-cbcl_analysis_symptom_group_int_merged_adjusted_p_values_pivoted <- cbcl_analysis_symptom_group_int_merged_adjusted_p_values %>%
-  pivot_wider(
-    id_cols = c(cbcl_column_name, column_name),
-    names_from = IV,
-    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
-    names_glue = "{IV}_{.value}")
-
-#1.28 Reorder columns to match the order in the paper
-cbcl_analysis_symptom_group_int_merged_adjusted_p_values_pivoted <-
-  cbcl_analysis_symptom_group_int_merged_adjusted_p_values_pivoted %>%
-  dplyr::select(c(
-      cbcl_column_name,
-      column_name,
-      `CBCL Score*Diagnosis Group Interaction_f_value`,
-      `CBCL Score*Diagnosis Group Interaction_df`,
-      `CBCL Score*Diagnosis Group Interaction_residual_df`,
-      `CBCL Score*Diagnosis Group Interaction_p_value`,
-      `CBCL Score*Diagnosis Group Interaction_p_adjusted`,
-      `CBCL Score_estimate`,
-      `CBCL Score_t_value`,
-      `CBCL Score_std_error`,
-      `CBCL Score_p_value`,
-      `CBCL Score_p_adjusted`,
-      `Diagnosis Group_f_value`,
-      `Diagnosis Group_df`,
-      `Diagnosis Group_residual_df`,
-      `Diagnosis Group_p_value`,
-      `FD Motion_estimate`,
-      `FD Motion_t_value`,
-      `FD Motion_std_error`,
-      `FD Motion_p_value`,
-      `Sex_f_value`,
-      `Sex_df`,
-      `Sex_residual_df`,
-      `Sex_p_value`,
-      `Timepoint_f_value`,
-      `Timepoint_df`,
-      `Timepoint_residual_df`,
-      `Timepoint_p_value`))
-
-#1.29 Write the full model results as a csv file
-write.csv(cbcl_analysis_symptom_group_int_merged_adjusted_p_values_pivoted, "./results/cbcl_merged_intx_analysis_results.csv", row.names = FALSE)
-
-
-#1.3 Plot the FC ~ CBCL*DX Group Data
-#1.31 Define the Merged group CBCL scores and connectivity metrics
-#1.1311 Define a vector containing the CBCL score variable names for the merged group analysis
-Merged_cbcl_scores <- c("cbcl_scr_syn_anxdep_t", "cbcl_scr_syn_external_t", "cbcl_scr_syn_internal_t", "cbcl_scr_dsm5_anxdisord_t")
-
-#1.1312 Define a vector containing descriptive labels corresponding to the CBCL score variables
-Merged_cbcl_labels <- c("Anxious Depressed", "Externalizing", "Internalizing", "DSM-5 Anxiety")
-
-#1.1313 Define a vector containing the connectivity metric variable names for the merged group analysis
-Merged_connectivity_metrics <- c("rsfmri_cor_ngd_cerc_scs_cdelh", "rsfmri_cor_ngd_cerc_scs_aglh", "rsfmri_c_ngd_vta_ngd_vta", "rsfmri_cor_ngd_df_scs_ptlh", "rsfmri_cor_ngd_sa_scs_ptlh")
-
-#1.1314 Define a vector containing descriptive labels corresponding to the connectivity metrics
-Merged_connectivity_labels <- c("CON - Left Caudate", "CON - Left Amygdala", "Within-VAN", "DMN - Left Putamen", "SN - Left Putamen")
-
-#1.32 Create an empty list to store the plots
-Merged_plots_list <- list()
-
-#1.33 Loop through each combination of CBCL score and connectivity metric
-for (i in seq_along(Merged_cbcl_scores)) {
-  for (j in seq_along(Merged_connectivity_metrics)) {
-    cbcl_score <- Merged_cbcl_scores[i]
-    cbcl_label <- Merged_cbcl_labels[i]
-    connectivity_metric <- Merged_connectivity_metrics[j]
-    connectivity_label <- Merged_connectivity_labels[j]
-
-    #1.332 Extract the beta estimate from the dataframe
-    beta_value <- cbcl_analysis_symptom_group_int_merged_adjusted_p_values_pivoted %>%
-      filter(column_name == connectivity_metric, cbcl_column_name == cbcl_score) %>%
-      pull(`CBCL Score_estimate`)
-    
-    #1.333 Create each merged scatterplot
-    Merged_scatterplot <- ggplot(dimensional_analysis_data_for_plotting, 
-                                 aes_string(x = cbcl_score, y = connectivity_metric, color = "analysis_group")) +
-      geom_point() +
-      geom_smooth(method = "lm", se = TRUE) +
-      coord_cartesian(ylim = c(-0.6, 0.6)) +
-      scale_color_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) +
-      theme_bw() +
-      theme(axis.line = element_line(colour = "black", size = 1, linetype = "solid"),
-            panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            axis.text.x = element_text(size = 8, margin = margin(0.01, unit = "cm"), angle = 0),
-            axis.text.y = element_text(size = 8, margin = margin(0.01, unit = "cm"), angle = 0),
-            axis.title.x = element_text(size = 8, margin = margin(t = 8)),
-            axis.title.y = element_text(size = 8, margin = margin(r = 8)),
-            legend.position = "none") +
-      labs(x = paste("CBCL", cbcl_label, "T Score"),
-           y = paste(connectivity_label))
-
-    #1.334 Annotate each plot with beta value
-    Merged_scatterplot <- Merged_scatterplot +
-      annotate("text",
-               x = Inf,       # Top right corner for x-axis
-               y = Inf,       # Top right corner for y-axis
-               label = paste("b =", round(as.numeric(beta_value), 4)),
-               size = 3,      # Adjust size as needed
-               hjust = 1,     # Adjust horizontal alignment
-               vjust = 1.1)   # Adjust vertical alignment
-    
-    #1.335 Store each plot in the list of plots to facet
-    Merged_plots_list[[length(Merged_plots_list) + 1]] <- Merged_scatterplot
-  }
-}
-
-#1.34 Combine all plots into a facet plot
-Merged_facet_plot <- do.call(grid.arrange, c(Merged_plots_list, nrow = 5))
-
-#1.35 Create a single plot with a legend from one of the plots
-Merged_facet_legend_plot <- ggplot(dimensional_analysis_data_for_plotting, 
-                                   aes_string(x = Merged_cbcl_scores[1], 
-                                              y = Merged_connectivity_metrics[1], 
-                                              color = "analysis_group")) +
-  geom_point() +
-  scale_color_manual(values = c("HC" = "#218380", "GAD" = "#D81159")) +
-  theme(legend.position = "bottom") +
-  labs(color = "Diagnostic Group")
-
-#1.36 Extract the legend from the single plot
-Merged_facet_legend <- cowplot::get_plot_component(Merged_facet_legend_plot, 'guide-box-bottom', return_all = TRUE)
-
-#1.371 Combine the facet plot and the extracted legend
-Merged_facet_plot_with_legend <- cowplot::plot_grid(Merged_facet_plot, Merged_facet_legend, ncol = 1, rel_heights = c(1, 0.1))
-
-#1.372 Print the final plot
-print(Merged_facet_plot_with_legend)
-
-
-#1.38 Save the final facet plot including the legend
-ggsave("./results/cbcl_merged_intx_analysis_facet_plot_with_legend.png", Merged_facet_plot_with_legend, bg = "white", width = 8.5, height = 11, units = "in", device = "png")
-
-
-#2. Determine if there are any within GAD group differences in connectivity based on CBCL symptom dimension expression 
-#2.1 Create a columns range for the CBCL and connectivity columns
-cbcl_col_range <- 16:19
-connectivity_col_range <- 11:15
-
-#2.2 Create an empty dataframe to store analysis values
-cbcl_analysis_GAD_results_df <- data.frame(cbcl_column_name = character(),
-                                           column_name = character(),
-                                           IV = character(),
-                                           estimate = numeric(),
-                                           std_error = numeric(),
-                                           t_value = numeric(),
-                                           f_value = numeric(),
-                                           df = numeric(),
-                                           residual_df = numeric(),
-                                           p_value = numeric(),
-                                           stringsAsFactors = FALSE)
-
-#2.23 Run the lm for each combination of CBCL metric and connectivity metric
-for (cbcl_col_num in cbcl_col_range) {
-  
-  #2.231 Get the CBCL metric column name
-  cbcl_col_name <- colnames(gad_group_dimensional_analysis_data)[cbcl_col_num]
-  for (connectivity_col_num in connectivity_col_range) {
-    
-    #2.232 Get the connectivity metric column name
-    connectivity_col_name <- colnames(gad_group_dimensional_analysis_data)[connectivity_col_num]
-    print(paste("Modeling", connectivity_col_name, "~", cbcl_col_name))
-    
-    #2.233 Run the linear regression model
-    cbcl_analysis_GAD_mlm_analysis <- lmerTest::lmer(formula = paste0(connectivity_col_name, " ~ ", cbcl_col_name, " + rsfmri_c_ngd_meanmotion + sex + eventname + (1|site_name) + (1|family_id)"), na.action = na.omit, data = gad_group_dimensional_analysis_data)
-    
-    #2.234 Run the ANCOVA Model
-    cbcl_analysis_GAD_ANCOVA_analysis <- car::Anova(cbcl_analysis_GAD_mlm_analysis, type = "II", test.statistic = "F")
-    
-    #2.235 Loop through fixed effects in the model
-    for (iv_name in row.names(cbcl_analysis_GAD_ANCOVA_analysis)) {
-      summary_lm <- summary(cbcl_analysis_GAD_mlm_analysis)
-      if (iv_name == cbcl_col_name || iv_name == "rsfmri_c_ngd_meanmotion") {
-        
-        #2.2351 For continuous variables (cbcl_col_name, rsfmri_c_ngd_meanmotion)
-        matched_row <- grep(paste0("^", iv_name, "$"), rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          estimate <- summary_lm$coefficients[matched_row, "Estimate"]
-          std_error <- summary_lm$coefficients[matched_row, "Std. Error"]
-          t_value <- summary_lm$coefficients[matched_row, "t value"]
-          p_value <- summary_lm$coefficients[matched_row, "Pr(>|t|)"]
-          cbcl_analysis_GAD_results_df <- rbind(
-            cbcl_analysis_GAD_results_df,
-            data.frame(cbcl_column_name = cbcl_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = estimate,
-                       std_error = std_error,
-                       t_value = t_value,
-                       f_value = NA,
-                       df = NA,
-                       residual_df = NA,
-                       p_value = p_value))
-        }
-      } else {
-        
-        #2.2352 For categorical variables (analysis_group, analysis_group*cbcl_col_name, sex, eventname)
-        matched_row <- grep(iv_name, rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          f_value <- cbcl_analysis_GAD_ANCOVA_analysis[iv_name, "F"]
-          df <- cbcl_analysis_GAD_ANCOVA_analysis[iv_name, "Df"]
-          residual_df <- cbcl_analysis_GAD_ANCOVA_analysis[iv_name, "Df.res"]
-          p_value <- cbcl_analysis_GAD_ANCOVA_analysis[iv_name, "Pr(>F)"]
-          cbcl_analysis_GAD_results_df <- rbind(
-            cbcl_analysis_GAD_results_df,
-            data.frame(cbcl_column_name = cbcl_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = NA,
-                       std_error = NA,
-                       t_value = NA,
-                       f_value = f_value,
-                       df = df,
-                       residual_df = residual_df,
-                       p_value = p_value))
-        }
-      }
+    if (nrow(control_row) != 1L || nrow(gad_row) != 1L) {
+      stop("Could not extract one Control and one GAD trend.")
     }
-  }
-}
 
-#2.31 Subset the data based on the relevant IV variable strings for FDR correction of p values
-cbcl_analysis_GAD_cbcl_p_adjust_subset <- subset(cbcl_analysis_GAD_results_df, grepl("cbcl_", IV))
+    difference_row <- emmeans::contrast(
+      trends,
+      method = list("GAD - control" = c(-1, 1)),
+      adjust = "none") %>%
+      summary(
+        infer = c(TRUE, TRUE),
+        adjust = "none") %>%
+      as.data.frame() %>%
+      dplyr::transmute(
+        estimate = suppressWarnings(as.numeric(estimate)),
+        std_error = suppressWarnings(as.numeric(SE)),
+        df = suppressWarnings(as.numeric(df)),
+        lower_ci = suppressWarnings(as.numeric(lower.CL)),
+        upper_ci = suppressWarnings(as.numeric(upper.CL)),
+        t_value = suppressWarnings(as.numeric(t.ratio)),
+        p_value = suppressWarnings(as.numeric(p.value)))
 
-#2.32 Create a new column conducting an FDR (p adjustment) on the derived p values
-cbcl_analysis_GAD_cbcl_p_adjust_subset$p_adjusted <- p.adjust(cbcl_analysis_GAD_cbcl_p_adjust_subset$p_value, method = "fdr")
-
-#2.33 Create a new dataframe where only significant results are stored
-cbcl_analysis_GAD_significant_results <- subset(cbcl_analysis_GAD_cbcl_p_adjust_subset, p_adjusted <= 0.05)
-
-#2.34 Join the FDR corrected p-values with the rest of the model results 
-cbcl_analysis_GAD_merged_adjusted_p_values <- left_join(cbcl_analysis_GAD_results_df, cbcl_analysis_GAD_cbcl_p_adjust_subset)
-
-#2.35 Remove all numbers from the strings in the column IV (for later merging purposes)
-cbcl_analysis_GAD_merged_adjusted_p_values$IV <- gsub("\\d+", "", cbcl_analysis_GAD_merged_adjusted_p_values$IV)
-
-#2.361 Rename IV values to match paper's format (e.g., CBCL Score, Diagnosis Group, FD Motion, Sex, Timepoint)
-cbcl_analysis_GAD_merged_adjusted_p_values <- cbcl_analysis_GAD_merged_adjusted_p_values %>%
-  mutate(
-    IV = case_when(
-      grepl("^cbcl_", IV) & !grepl("analysis_group", IV) ~ "CBCL Score",
-      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
-      IV == "sex" ~ "Sex",
-      IV == "eventname" ~ "Timepoint"))
-
-#2.362 Remove rows with Intercept values
-cbcl_analysis_GAD_merged_adjusted_p_values <- cbcl_analysis_GAD_merged_adjusted_p_values[cbcl_analysis_GAD_merged_adjusted_p_values$IV != "(Intercept)", ]
-
-#2.37 Pivot the full model results to be wider
-cbcl_analysis_GAD_merged_adjusted_p_values_pivoted <- cbcl_analysis_GAD_merged_adjusted_p_values %>%
-  pivot_wider(
-    id_cols = c(cbcl_column_name, column_name),
-    names_from = IV,
-    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
-    names_glue = "{IV}_{.value}")
-
-#2.38 Reorder columns to match the order in the paper results
-cbcl_analysis_GAD_merged_adjusted_p_values_pivoted <- cbcl_analysis_GAD_merged_adjusted_p_values_pivoted %>%
-  dplyr::select(c(cbcl_column_name, column_name, `CBCL Score_estimate`, `CBCL Score_t_value`, `CBCL Score_std_error`, `CBCL Score_p_value`, `CBCL Score_p_adjusted`, `FD Motion_estimate`, `FD Motion_t_value`, `FD Motion_std_error`, `FD Motion_p_value`, `Sex_f_value`, `Sex_df`, `Sex_residual_df`, `Sex_p_value`, `Timepoint_f_value`, `Timepoint_df`, `Timepoint_residual_df`, `Timepoint_p_value`))
-
-#2.4 Write the full model results as a csv file
-write.csv(cbcl_analysis_GAD_merged_adjusted_p_values_pivoted, "./results/cbcl_gad_group_analysis_results.csv", row.names = FALSE)
-
-#2.5 Plot the GAD group dimensional (CBCL) analysis results
-#2.511 Convert the beta values of interest to numeric for in plot formatting
-cbcl_analysis_GAD_merged_adjusted_p_values_pivoted$`CBCL Score_estimate` <- as.numeric(cbcl_analysis_GAD_merged_adjusted_p_values_pivoted$`CBCL Score_estimate`)
-
-#2.512 Define the GAD group CBCL scores and connectivity metrics
-GAD_cbcl_scores <-
-  c("cbcl_scr_syn_anxdep_t",
-    "cbcl_scr_syn_external_t",
-    "cbcl_scr_syn_internal_t", 
-    "cbcl_scr_dsm5_anxdisord_t")
-GAD_cbcl_labels <-
-  c("Anxious Depressed",
-    "Externalizing",
-    "Internalizing",
-    "DSM-5 Anxiety")
-GAD_connectivity_metrics <-
-  c("rsfmri_cor_ngd_cerc_scs_cdelh",
-    "rsfmri_cor_ngd_cerc_scs_aglh",
-    "rsfmri_c_ngd_vta_ngd_vta",
-    "rsfmri_cor_ngd_df_scs_ptlh",
-    "rsfmri_cor_ngd_sa_scs_ptlh")
-GAD_connectivity_labels <-
-  c("CON - Left Caudate",
-    "CON - Left Amygdala",
-    "Within-VAN",
-    "DMN - Left Putamen",
-    "SN - Left Putamen")
-
-#2.52 Create an empty list to store the plots
-GAD_plots_list <- list()
-
-#2.53 Loop through each combination of CBCL score and connectivity metric
-for (i in seq_along(GAD_cbcl_scores)) {
-  for (j in seq_along(GAD_connectivity_metrics)) {
-    cbcl_score <- GAD_cbcl_scores[i]
-    cbcl_label <- GAD_cbcl_labels[i]
-    connectivity_metric <- GAD_connectivity_metrics[j]
-    connectivity_label <- GAD_connectivity_labels[j]
-    
-    #2.531 Extract the beta estimate from the dataframe
-    beta_value <-
-      cbcl_analysis_GAD_merged_adjusted_p_values_pivoted %>%
-      filter(column_name == connectivity_metric & 
-             cbcl_column_name == cbcl_score) %>%
-      pull(`CBCL Score_estimate`)
-
-    #2.532 Create GAD group scatterplot
-    GAD_scatterplot <-
-      ggplot(gad_group_dimensional_analysis_data, aes_string(x = cbcl_score, y = connectivity_metric)) +
-      geom_point(color = "#D81159") +
-      geom_smooth(method = "lm", se = TRUE) +
-      coord_cartesian(ylim = c(-0.6, 0.6)) +
-      theme_bw() +
-      theme(axis.line = element_line(colour = "black",
-                                     size = 1,
-                                     linetype = "solid"),
-            panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            axis.text.x = element_text(size = 8,
-                                       margin = margin(0.01, unit = "cm"),
-                                       angle = 0),
-            axis.text.y = element_text(
-              size = 8,
-              margin = margin(0.01, unit = "cm"),
-              angle = 0),
-            axis.title.x = element_text(size = 8, margin = margin(t = 8)),
-            axis.title.y = element_text(size = 8, margin = margin(r = 8)),
-            legend.position = "none") +
-      labs(x = paste("CBCL", cbcl_label, "T Score"),
-           y = paste(connectivity_label))
-    
-    #2.533 Annotate with beta value
-    GAD_scatterplot <- GAD_scatterplot +
-      annotate("text",
-               x = Inf,       # Top right corner for x-axis
-               y = Inf,       # Top right corner for y-axis
-               label = paste("b =", round(as.numeric(beta_value), 4)),
-               size = 3,      # Adjust size as needed
-               hjust = 1,   # Adjust horizontal alignment
-               vjust = 1.1)
-    
-    #2.534 Store the plot in the list
-    GAD_plots_list[[length(GAD_plots_list) + 1]] <-
-      GAD_scatterplot
-  }
-}
-
-#2.54 Combine all plots into a facet plot
-GAD_facet_plot <-
-  do.call(grid.arrange, c(GAD_plots_list, nrow = 5))
-
-#2.55 Save the GAD group facet plot
-ggsave("./results/cbcl_gad_group_analysis_facet_plot.png", GAD_facet_plot, bg = "white", width = 8.5, height = 11, units = "in", dpi = 300, device = "png")
-
-
-#3. Determine if there are any within Control group differences in connectivity based on CBCL symptom dimension expression 
-#3.1 Create an empty dataframe to store analysis values
-cbcl_analysis_control_results_df <-
-  data.frame(cbcl_column_name = character(),
-    column_name = character(),
-    IV = character(),
-    estimate = numeric(),
-    std_error = numeric(),
-    t_value = numeric(),
-    f_value = numeric(),
-    df = numeric(),
-    residual_df = numeric(),
-    p_value = numeric(),
-    stringsAsFactors = FALSE)
-
-#3.2 Run the lm for each combination of CBCL metric and connectivity metric
-for (cbcl_col_num in cbcl_col_range) {
-  
-  #3.21 Get the CBCL metric column name
-  cbcl_col_name <- colnames(hc_group_dimensional_analysis_data)[cbcl_col_num]
-  for (connectivity_col_num in connectivity_col_range) {
-    
-    #3.22 Get the connectivity metric column name
-    connectivity_col_name <- colnames(hc_group_dimensional_analysis_data)[connectivity_col_num]
-    print(paste("Modeling", connectivity_col_name, "~", cbcl_col_name))
-    
-    #3.23 Run the linear regression model
-    cbcl_analysis_control_mlm_analysis <- lmerTest::lmer(formula = paste0(connectivity_col_name, " ~ ", cbcl_col_name, " + rsfmri_c_ngd_meanmotion + sex + eventname + (1|site_name) + (1|family_id)"), na.action = na.omit, data = hc_group_dimensional_analysis_data)
-    
-    #3.24 Run the ANCOVA Model
-    cbcl_analysis_control_ANCOVA_analysis <- car::Anova(cbcl_analysis_control_mlm_analysis, type = "II", test.statistic = "F")
-    
-    #3.25 Loop through fixed effects in the model
-    for (iv_name in row.names(cbcl_analysis_control_ANCOVA_analysis)) {
-      summary_lm <- summary(cbcl_analysis_control_mlm_analysis)
-      if (iv_name == cbcl_col_name || iv_name == "rsfmri_c_ngd_meanmotion") {
-        
-        #3.251 For continuous variables (cbcl_col_name, rsfmri_c_ngd_meanmotion)
-        matched_row <- grep(paste0("^", iv_name, "$"), rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          estimate <- summary_lm$coefficients[matched_row, "Estimate"]
-          std_error <- summary_lm$coefficients[matched_row, "Std. Error"]
-          t_value <- summary_lm$coefficients[matched_row, "t value"]
-          p_value <- summary_lm$coefficients[matched_row, "Pr(>|t|)"]
-          cbcl_analysis_control_results_df <- rbind(
-            cbcl_analysis_control_results_df,
-            data.frame(cbcl_column_name = cbcl_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = estimate,
-                       std_error = std_error,
-                       t_value = t_value,
-                       f_value = NA,
-                       df = NA,
-                       residual_df = NA,
-                       p_value = p_value))
-        }
-      } else {
-        
-        #3.252 For categorical variables (analysis_group, analysis_group*cbcl_col_name, sex, eventname)
-        matched_row <- grep(iv_name, rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          f_value <- cbcl_analysis_control_ANCOVA_analysis[iv_name, "F"]
-          df <- cbcl_analysis_control_ANCOVA_analysis[iv_name, "Df"]
-          residual_df <- cbcl_analysis_control_ANCOVA_analysis[iv_name, "Df.res"]
-          p_value <- cbcl_analysis_control_ANCOVA_analysis[iv_name, "Pr(>F)"]
-          cbcl_analysis_control_results_df <- rbind(
-            cbcl_analysis_control_results_df,
-            data.frame(cbcl_column_name = cbcl_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = NA,
-                       std_error = NA,
-                       t_value = NA,
-                       f_value = f_value,
-                       df = df,
-                       residual_df = residual_df,
-                       p_value = p_value))
-        }
-      }
+    if (nrow(difference_row) != 1L) {
+      stop("Could not extract one GAD-minus-Control slope contrast.")
     }
-  }
+
+    list(
+      control = control_row,
+      gad = gad_row,
+      difference = difference_row)
+  }, error = function(error_condition) empty_result)
 }
 
-#3.31 Subset the data based on the relevant IV variable strings for FDR correction of p values
-cbcl_analysis_control_cbcl_p_adjust_subset <- subset(cbcl_analysis_control_results_df, grepl("cbcl_", IV))
-
-#3.32 Create a new column conducting an FDR (p adjustment) on the derived p values
-cbcl_analysis_control_cbcl_p_adjust_subset$p_adjusted <- p.adjust(cbcl_analysis_control_cbcl_p_adjust_subset$p_value, method = "fdr")
-
-#3.33 Create a new dataframe wherein only significant results are stored
-cbcl_analysis_control_significant_results <- subset(cbcl_analysis_control_cbcl_p_adjust_subset, p_adjusted <= 0.05)
-
-#3.34 Join the FDR corrected p-values with the rest of the model results 
-cbcl_analysis_control_merged_adjusted_p_values <- left_join(cbcl_analysis_control_results_df, cbcl_analysis_control_cbcl_p_adjust_subset)
-
-#3.35 Remove all numbers from the strings in the column IV (for later merging purposes)
-cbcl_analysis_control_merged_adjusted_p_values$IV <- gsub("\\d+", "", cbcl_analysis_control_merged_adjusted_p_values$IV)
-
-#3.361 Rename IV values to match paper's format (e.g., CBCL Score, Diagnosis Group, FD Motion, Sex, Timepoint)
-cbcl_analysis_control_merged_adjusted_p_values <- cbcl_analysis_control_merged_adjusted_p_values %>%
-  mutate(
-    IV = case_when(
-      grepl("^cbcl_", IV) & !grepl("analysis_group", IV) ~ "CBCL Score",
-      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
-      IV == "sex" ~ "Sex",
-      IV == "eventname" ~ "Timepoint"))
-
-#3.362 Remove rows with Intercept values
-cbcl_analysis_control_merged_adjusted_p_values <- cbcl_analysis_control_merged_adjusted_p_values[cbcl_analysis_control_merged_adjusted_p_values$IV != "(Intercept)", ]
-
-#3.37 Pivot the full model results to be wider
-cbcl_analysis_control_merged_adjusted_p_values_pivoted <- cbcl_analysis_control_merged_adjusted_p_values %>%
-  pivot_wider(
-    id_cols = c(cbcl_column_name, column_name),
-    names_from = IV,
-    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
-    names_glue = "{IV}_{.value}")
-
-#3.38 Reorder columns to match the order in your paper
-cbcl_analysis_control_merged_adjusted_p_values_pivoted <- cbcl_analysis_control_merged_adjusted_p_values_pivoted %>%
-  dplyr::select(c(cbcl_column_name, column_name, `CBCL Score_estimate`, `CBCL Score_t_value`, `CBCL Score_std_error`, `CBCL Score_p_value`, `CBCL Score_p_adjusted`, `FD Motion_estimate`, `FD Motion_t_value`, `FD Motion_std_error`, `FD Motion_p_value`, `Sex_f_value`, `Sex_df`, `Sex_residual_df`, `Sex_p_value`, `Timepoint_f_value`, `Timepoint_df`, `Timepoint_residual_df`, `Timepoint_p_value`))
-
-#3.354 Write the full model results as a csv file
-write.csv(cbcl_analysis_control_merged_adjusted_p_values_pivoted, "./results/cbcl_hc_group_analysis_results.csv", row.names = FALSE)
-
-
-#3.4 Plot the results of the hc group cbcl analysis
-#3.41 Convert the beta values of interest to numeric for in plot formatting
-cbcl_analysis_control_merged_adjusted_p_values_pivoted$`CBCL Score_estimate` <- as.numeric(cbcl_analysis_control_merged_adjusted_p_values_pivoted$`CBCL Score_estimate`)
-
-#3.51 Define the control group CBCL scores and connectivity metrics
-control_cbcl_scores <-
-  c("cbcl_scr_syn_anxdep_t",
-    "cbcl_scr_syn_external_t",
-    "cbcl_scr_syn_internal_t",
-    "cbcl_scr_dsm5_anxdisord_t")
-control_cbcl_labels <-
-  c("Anxious Depressed",
-    "Externalizing",
-    "Internalizing",
-    "DSM-5 Anxiety")
-control_connectivity_metrics <-
-  c("rsfmri_cor_ngd_cerc_scs_cdelh",
-    "rsfmri_cor_ngd_cerc_scs_aglh",
-    "rsfmri_c_ngd_vta_ngd_vta",
-    "rsfmri_cor_ngd_df_scs_ptlh",
-    "rsfmri_cor_ngd_sa_scs_ptlh")
-control_connectivity_labels <-
-  c("CON - Left Caudate",
-    "CON - Left Amygdala",
-    "Within-VAN",
-    "DMN - Left Putamen",
-    "SN - Left Putamen")
-
-#3.52 Create an empty list to store the plots
-control_plots_list <- list()
-
-#3.53 Loop through each combination of CBCL score and connectivity metric
-for (i in seq_along(control_cbcl_scores)) {
-  for (j in seq_along(control_connectivity_metrics)) {
-    cbcl_score <- control_cbcl_scores[i]
-    cbcl_label <- control_cbcl_labels[i]
-    connectivity_metric <- control_connectivity_metrics[j]
-    connectivity_label <- control_connectivity_labels[j]
-    
-    #3.531 Extract the beta estimate from the dataframe
-    beta_value <-
-      cbcl_analysis_control_merged_adjusted_p_values_pivoted %>%
-      filter(column_name == connectivity_metric,
-             cbcl_column_name == cbcl_score) %>%
-      pull(`CBCL Score_estimate`)
-
-    #3.532 Create control_scatterplot
-    control_scatterplot <-
-      ggplot(hc_group_dimensional_analysis_data, aes_string(x = cbcl_score, y = connectivity_metric)) +
-      geom_point(color = "#218380") +
-      geom_smooth(method = "lm", se = TRUE) +
-      coord_cartesian(ylim = c(-0.6, 0.6)) +
-      theme_bw() +
-      theme(axis.line = element_line(colour = "black",
-                                     size = 1,
-                                     linetype = "solid"),
-            panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            axis.text.x = element_text(size = 8,
-                                       margin = margin(0.01, unit = "cm"),
-                                       angle = 0),
-            axis.text.y = element_text(
-              size = 8,
-              margin = margin(0.01, unit = "cm"),
-              angle = 0),
-            axis.title.x = element_text(size = 8, margin = margin(t = 8)),
-            axis.title.y = element_text(size = 8, margin = margin(r = 8)),
-            legend.position = "none") +
-      labs(x = paste("CBCL", cbcl_label, "T Score"),
-           y = paste(connectivity_label))
-    
-    #3.533 Annotate with beta value
-    control_scatterplot <- control_scatterplot +
-      annotate("text",
-               x = Inf,       # Top right corner for x-axis
-               y = Inf,       # Top right corner for y-axis
-               label = paste("b =", round(as.numeric(beta_value), 4)),
-               size = 3,      # Adjust size as needed
-               hjust = 1,   # Adjust horizontal alignment
-               vjust = 1.1)
-
-    #3.534 Store the plot in the list
-    control_plots_list[[length(control_plots_list) + 1]] <-
-      control_scatterplot
-  }
+prefix_columns <- function(data, prefix) {
+  names(data) <- paste0(prefix, names(data))
+  data
 }
 
-#3.54 Combine all plots into a facet plot
-control_facet_plot <- do.call(grid.arrange, c(control_plots_list, nrow = 5))
-
-#3.55 Save the plot
-ggsave("./results/cbcl_hc_group_analysis_facet_plot.png", control_facet_plot, bg = "white", width = 8.5, height = 11, units = "in", dpi = 300, device = "png")
-
-
-## BPM Data Analysis ##
-
-#1. Test whether symptom is associated with connectivity in the whole group
-#1.1 Create a column range for the bpm and connectivity columns
-bpm_col_range <- 20:21
-connectivity_col_range <- 10:14
-
-#1.2 Create an empty dataframe to store analysis values
-symptom_group_int_bpm_con_results_df <- data.frame(IV = character(), column_name = character(), bpm_col_name = character(), f_value = numeric(), df = numeric(), residual_df = numeric(), p_value = numeric())
-
-#1.3 Run the lm for each combination of bpm metric and connectivity metric
-symptom_group_int_bpm_con_results_df <- data.frame(
-  bpm_column_name = character(),
-  column_name = character(),
-  IV = character(),
-  estimate = numeric(),
-  std_error = numeric(),
-  t_value = numeric(),
-  f_value = numeric(),
-  df = numeric(),
-  residual_df = numeric(),
-  p_value = numeric(),
-  stringsAsFactors = FALSE)
-
-#1.3 Run the lm for each combination of bpm metric and connectivity metric
-for (bpm_col_num in bpm_col_range) {
-  
-  #1.31 Get the bpm metric column name
-  bpm_col_name <- colnames(dimensional_analysis_data)[bpm_col_num]
-  for (connectivity_col_num in connectivity_col_range) {
-    
-    #1.32 Get the connectivity metric column name
-    connectivity_col_name <- colnames(dimensional_analysis_data)[connectivity_col_num]
-    print(paste("Modeling", connectivity_col_name, "~", bpm_col_name))
-    
-    #1.33 Run the linear regression model
-    symptom_group_int_bpm_con_mlm_analysis <- lmerTest::lmer(formula = paste0(connectivity_col_name, " ~ ", bpm_col_name, "*analysis_group + rsfmri_c_ngd_meanmotion + sex + (1|site_name) + (1|family_id)"), na.action = na.omit, data = dimensional_analysis_data)
-    
-    #1.34 Run the ANCOVA Model
-    symptom_group_int_bpm_con_ANCOVA_analysis <- car::Anova(symptom_group_int_bpm_con_mlm_analysis, type = "III", test.statistic = "F")
-    
-    #1.35 Loop through fixed effects in the model
-    for (iv_name in row.names(symptom_group_int_bpm_con_ANCOVA_analysis)) {
-      summary_lm <- summary(symptom_group_int_bpm_con_mlm_analysis)
-      if (iv_name == bpm_col_name || iv_name == "rsfmri_c_ngd_meanmotion") {
-        
-        #1.351 For continuous variables (bpm_col_name, rsfmri_c_ngd_meanmotion)
-        matched_row <- grep(paste0("^", iv_name, "$"), rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          estimate <- summary_lm$coefficients[matched_row, "Estimate"]
-          std_error <- summary_lm$coefficients[matched_row, "Std. Error"]
-          t_value <- summary_lm$coefficients[matched_row, "t value"]
-          p_value <- summary_lm$coefficients[matched_row, "Pr(>|t|)"]
-          symptom_group_int_bpm_con_results_df <- rbind(
-            symptom_group_int_bpm_con_results_df,
-            data.frame(bpm_column_name = bpm_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = estimate,
-                       std_error = std_error,
-                       t_value = t_value,
-                       f_value = NA,
-                       df = NA,
-                       residual_df = NA,
-                       p_value = p_value))
-        }
-      } else {
-        
-        #1.352 For categorical variables (analysis_group, analysis_group*bpm_col_name, sex, eventname)
-        matched_row <- grep(iv_name, rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          f_value <- symptom_group_int_bpm_con_ANCOVA_analysis[iv_name, "F"]
-          df <- symptom_group_int_bpm_con_ANCOVA_analysis[iv_name, "Df"]
-          residual_df <- symptom_group_int_bpm_con_ANCOVA_analysis[iv_name, "Df.res"]
-          p_value <- symptom_group_int_bpm_con_ANCOVA_analysis[iv_name, "Pr(>F)"]
-          symptom_group_int_bpm_con_results_df <- rbind(
-            symptom_group_int_bpm_con_results_df,
-            data.frame(bpm_column_name = bpm_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = NA,
-                       std_error = NA,
-                       t_value = NA,
-                       f_value = f_value,
-                       df = df,
-                       residual_df = residual_df,
-                       p_value = p_value))
-        }
-      }
+add_fdr_columns <- function(data, p_columns) {
+  for (p_column in p_columns) {
+    if (!(p_column %in% names(data))) {
+      stop("Cannot FDR-correct missing p-value column: ", p_column)
     }
+
+    across_family_name <- paste0(p_column, "_fdr_across_family")
+    within_symptom_name <- paste0(p_column, "_fdr_within_symptom")
+
+    data[[across_family_name]] <- stats::p.adjust(
+      data[[p_column]],
+      method = "fdr")
+
+    data <- data %>%
+      dplyr::group_by(symptom_variable) %>%
+      dplyr::mutate(
+        !!within_symptom_name := stats::p.adjust(
+          .data[[p_column]],
+          method = "fdr")) %>%
+      dplyr::ungroup()
   }
+
+  data
 }
 
-#1.4 Subset the data based on the relevant IV variable strings for FDR correction of p values
-symptom_group_int_bpm_con_p_adjust_subset <- subset(symptom_group_int_bpm_con_results_df, grepl(":analysis_group", IV))
-symptom_group_int_bpm_con_bpm_p_adjust_subset <- subset(symptom_group_int_bpm_con_results_df, grepl("bpm_", IV))
-symptom_group_int_bpm_con_bpm_p_adjust_subset <- symptom_group_int_bpm_con_bpm_p_adjust_subset[is.na(symptom_group_int_bpm_con_bpm_p_adjust_subset$f_value), ]
+write_csv_safely <- function(data, path) {
+  output_directory <- dirname(path)
+  dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
 
-#1.51 Create a new column conducting an FDR (p adjustment) on the derived p values
-symptom_group_int_bpm_con_p_adjust_subset$p_adjusted <- p.adjust(symptom_group_int_bpm_con_p_adjust_subset$p_value, method = "fdr")
-symptom_group_int_bpm_con_bpm_p_adjust_subset$p_adjusted <- p.adjust(symptom_group_int_bpm_con_bpm_p_adjust_subset$p_value, method = "fdr")
+  temporary_path <- tempfile(
+    pattern = paste0(basename(path), ".tmp_"),
+    tmpdir = output_directory,
+    fileext = ".csv")
 
-#1.52 Merge the FDR corrected p-values together
-symptom_group_int_bpm_con_p_adjust_subset <- full_join(symptom_group_int_bpm_con_p_adjust_subset, symptom_group_int_bpm_con_bpm_p_adjust_subset)
+  readr::write_csv(data, temporary_path)
 
-#1.6 Create a new dataframe where only significant results are stored
-symptom_group_int_bpm_con_significant_results <- subset(symptom_group_int_bpm_con_p_adjust_subset, p_adjusted <= 0.05)
+  copied <- file.copy(
+    from = temporary_path,
+    to = path,
+    overwrite = TRUE)
 
-#1.7 Join the FDR corrected p-values with the rest of the model results 
-symptom_group_int_bpm_con_merged_adjusted_p_values <- left_join(symptom_group_int_bpm_con_results_df, symptom_group_int_bpm_con_p_adjust_subset)
+  unlink(temporary_path)
 
-#1.81 Remove all numbers from the strings in the column IV (for later merging purposes)
-symptom_group_int_bpm_con_merged_adjusted_p_values$IV <- gsub("\\d+", "", symptom_group_int_bpm_con_merged_adjusted_p_values$IV)
-
-#1.82 Rename IV values to match paper's format (e.g., bpm Score, Diagnosis Group, FD Motion, Sex, Timepoint)
-symptom_group_int_bpm_con_merged_adjusted_p_values <- symptom_group_int_bpm_con_merged_adjusted_p_values %>%
-  mutate(
-    IV = case_when(
-      grepl("^bpm_", IV) & !grepl("analysis_group", IV) ~ "bpm Score",
-      IV == "analysis_group" ~ "Diagnosis Group",
-      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
-      IV == "sex" ~ "Sex",
-      IV == "eventname" ~ "Timepoint",
-      grepl("^bpm_.*:analysis_group", IV) ~ "bpm Score*Diagnosis Group Interaction",
-      TRUE ~ IV))
-
-#1.83 Remove rows with Intercept values
-symptom_group_int_bpm_con_merged_adjusted_p_values <- symptom_group_int_bpm_con_merged_adjusted_p_values[symptom_group_int_bpm_con_merged_adjusted_p_values$IV != "(Intercept)", ]
-
-#1.91 Pivot the full model results to be wide format
-symptom_group_int_bpm_con_merged_adjusted_p_values_pivoted <- symptom_group_int_bpm_con_merged_adjusted_p_values %>%
-  pivot_wider(
-    id_cols = c(bpm_column_name, column_name),
-    names_from = IV,
-    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
-    names_glue = "{IV}_{.value}")
-
-#1.92 Reorder columns to match the order in the paper
-symptom_group_int_bpm_con_merged_adjusted_p_values_pivoted <- symptom_group_int_bpm_con_merged_adjusted_p_values_pivoted %>%
-  dplyr::select(c(bpm_column_name, column_name, `bpm Score*Diagnosis Group Interaction_f_value`, `bpm Score*Diagnosis Group Interaction_df`, `bpm Score*Diagnosis Group Interaction_residual_df`, `bpm Score*Diagnosis Group Interaction_p_value`, `bpm Score*Diagnosis Group Interaction_p_adjusted`, `bpm Score_estimate`, `bpm Score_t_value`, `bpm Score_std_error`, `bpm Score_p_value`, `bpm Score_p_adjusted`, `Diagnosis Group_f_value`, `Diagnosis Group_df`, `Diagnosis Group_residual_df`, `Diagnosis Group_p_value`, `FD Motion_estimate`, `FD Motion_t_value`, `FD Motion_std_error`, `FD Motion_p_value`, `Sex_f_value`, `Sex_df`, `Sex_residual_df`, `Sex_p_value`))
-
-#1.93 Write the full model results as a csv file
-write.csv(symptom_group_int_bpm_con_merged_adjusted_p_values_pivoted, "./results/bpm_merged_group_results.csv", row.names = FALSE)
-
-
-#2. Test for differences in predicting connectivity based on bpm symptoms in the control group
-#2.1 Create a columns range for the bpm columns
-bpm_col_range <- 20:21
-connectivity_col_range <- 10:14
-
-#2.2 Create an empty dataframe to store analysis values
-control_group_bpm_con_results_df <- data.frame(bpm_column_name = character(),
-                                               column_name = character(),
-                                               IV = character(),
-                                               estimate = numeric(),
-                                               std_error = numeric(),
-                                               t_value = numeric(),
-                                               f_value = numeric(),
-                                               df = numeric(),
-                                               residual_df = numeric(),
-                                               p_value = numeric(),
-                                               stringsAsFactors = FALSE)
-
-#2.3 Run the lm for each combination of bpm metric and connectivity metric
-for (bpm_col_num in bpm_col_range) {
-  
-  #2.31 Get the bpm metric column name
-  bpm_col_name <- colnames(hc_group_dimensional_analysis_data)[bpm_col_num]
-  for (connectivity_col_num in connectivity_col_range) {
-    
-    #2.32 Get the connectivity metric column name
-    connectivity_col_name <- colnames(hc_group_dimensional_analysis_data)[connectivity_col_num]
-    print(paste("Modeling", connectivity_col_name, "~", bpm_col_name))
-    
-    #2.33 Run the linear regression model
-    control_group_bpm_con_mlm_analysis <- lmerTest::lmer(formula = paste0(connectivity_col_name, " ~ ", bpm_col_name, " + rsfmri_c_ngd_meanmotion + sex + (1|site_name)"), na.action = na.omit, data = hc_group_dimensional_analysis_data)
-    
-    #2.34 Run the ANCOVA Model
-    control_group_bpm_con_ANCOVA_analysis <- car::Anova(control_group_bpm_con_mlm_analysis, type = "II", test.statistic = "F")
-    
-    #2.35 Loop through fixed effects in the model
-    for (iv_name in row.names(control_group_bpm_con_ANCOVA_analysis)) {
-      summary_lm <- summary(control_group_bpm_con_mlm_analysis)
-      if (iv_name == bpm_col_name || iv_name == "rsfmri_c_ngd_meanmotion") {
-        
-        #2.351 For continuous variables (bpm_col_name, rsfmri_c_ngd_meanmotion)
-        matched_row <- grep(paste0("^", iv_name, "$"), rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          estimate <- summary_lm$coefficients[matched_row, "Estimate"]
-          std_error <- summary_lm$coefficients[matched_row, "Std. Error"]
-          t_value <- summary_lm$coefficients[matched_row, "t value"]
-          p_value <- summary_lm$coefficients[matched_row, "Pr(>|t|)"]
-          control_group_bpm_con_results_df <- rbind(
-            control_group_bpm_con_results_df,
-            data.frame(bpm_column_name = bpm_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = estimate,
-                       std_error = std_error,
-                       t_value = t_value,
-                       f_value = NA,
-                       df = NA,
-                       residual_df = NA,
-                       p_value = p_value))
-        }
-      } else {
-        
-        #2.352 For categorical variables (analysis_group, analysis_group*bpm_col_name, sex, eventname)
-        matched_row <- grep(iv_name, rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          f_value <- control_group_bpm_con_ANCOVA_analysis[iv_name, "F"]
-          df <- control_group_bpm_con_ANCOVA_analysis[iv_name, "Df"]
-          residual_df <- control_group_bpm_con_ANCOVA_analysis[iv_name, "Df.res"]
-          p_value <- control_group_bpm_con_ANCOVA_analysis[iv_name, "Pr(>F)"]
-          control_group_bpm_con_results_df <- rbind(
-            control_group_bpm_con_results_df,
-            data.frame(bpm_column_name = bpm_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = NA,
-                       std_error = NA,
-                       t_value = NA,
-                       f_value = f_value,
-                       df = df,
-                       residual_df = residual_df,
-                       p_value = p_value))
-        }
-      }
-    }
+  if (!isTRUE(copied)) {
+    stop("Failed to replace result file: ", path)
   }
+
+  message("Result written: ", path)
 }
 
-#2.4 Subset the data based on the relevant IV variable strings for FDR correction of p values
-control_group_bpm_con_bpm_p_adjust_subset <- subset(control_group_bpm_con_results_df, grepl("bpm_", IV))
 
-#2.5 Create a new column conducting an FDR (p adjustment) on the derived p values
-control_group_bpm_con_bpm_p_adjust_subset$p_adjusted <- p.adjust(control_group_bpm_con_bpm_p_adjust_subset$p_value, method = "fdr")
+## Read and Validate the Primary Dimensional Dataset ##
 
-#2.6 Create a new dataframe where only significant results are stored
-control_group_bpm_con_significant_results <- subset(control_group_bpm_con_bpm_p_adjust_subset, p_adjusted <= 0.05)
+dimensional_data <- readr::read_csv(
+  dimensional_data_path,
+  show_col_types = FALSE)
 
-#2.7 Join the FDR corrected p-values with the rest of the model results 
-control_group_bpm_con_merged_adjusted_p_values <- left_join(control_group_bpm_con_results_df, control_group_bpm_con_bpm_p_adjust_subset)
+required_variables <- c(
+  "subjectkey",
+  "family_id",
+  "eventname",
+  "analysis_group",
+  "group",
+  "interview_age",
+  "age_in_years",
+  "sex",
+  "site_name",
+  "rsfmri_c_ngd_meanmotion",
+  connectivity_vars,
+  cbcl_vars,
+  bpm_vars)
 
-#2.8 Remove all numbers from the strings in the column IV (for later merging purposes)
-control_group_bpm_con_merged_adjusted_p_values$IV <- gsub("\\d+", "", control_group_bpm_con_merged_adjusted_p_values$IV)
+assert_columns(
+  dimensional_data,
+  required_variables,
+  "Primary dimensional dataset")
 
-#2.91 Rename IV values to match paper's format (e.g., bpm Score, Diagnosis Group, FD Motion, Sex, Timepoint)
-control_group_bpm_con_merged_adjusted_p_values <- control_group_bpm_con_merged_adjusted_p_values %>%
-  mutate(
-    IV = case_when(
-      grepl("^bpm_", IV) & !grepl("analysis_group", IV) ~ "bpm Score",
-      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
-      IV == "sex" ~ "Sex",
-      IV == "eventname" ~ "Timepoint"))
+dimensional_data <- dimensional_data %>%
+  dplyr::mutate(
+    subjectkey = clean_character(subjectkey),
+    family_id = clean_character(family_id),
+    eventname = clean_character(eventname),
+    analysis_group = clean_character(analysis_group),
+    group = clean_character(group),
+    interview_age = suppressWarnings(as.numeric(interview_age)),
+    age_in_years = suppressWarnings(as.numeric(age_in_years)),
+    sex = clean_character(sex),
+    site_name = clean_character(site_name),
+    rsfmri_c_ngd_meanmotion =
+      suppressWarnings(as.numeric(rsfmri_c_ngd_meanmotion)),
+    dplyr::across(
+      dplyr::all_of(c(connectivity_vars, cbcl_vars, bpm_vars)),
+      ~ suppressWarnings(as.numeric(.x))))
 
-#2.92 Remove rows with Intercept values
-control_group_bpm_con_merged_adjusted_p_values <- control_group_bpm_con_merged_adjusted_p_values[control_group_bpm_con_merged_adjusted_p_values$IV != "(Intercept)", ]
+assert_unique_keys(dimensional_data, "Primary dimensional dataset")
 
-#2.101 Pivot the full model results to be wider
-control_group_bpm_con_merged_adjusted_p_values_pivoted <- control_group_bpm_con_merged_adjusted_p_values %>%
-  pivot_wider(
-    id_cols = c(bpm_column_name, column_name),
-    names_from = IV,
-    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
-    names_glue = "{IV}_{.value}")
+unexpected_groups <- setdiff(
+  unique(dimensional_data$analysis_group),
+  analysis_groups)
 
-#2.102 Reorder columns to match the order in your paper
-control_group_bpm_con_merged_adjusted_p_values_pivoted <- control_group_bpm_con_merged_adjusted_p_values_pivoted %>%
-  dplyr::select(c(bpm_column_name, column_name, `bpm Score_estimate`, `bpm Score_t_value`, `bpm Score_std_error`, `bpm Score_p_value`, `bpm Score_p_adjusted`, `FD Motion_estimate`, `FD Motion_t_value`, `FD Motion_std_error`, `FD Motion_p_value`, `Sex_f_value`, `Sex_df`, `Sex_residual_df`, `Sex_p_value`))
-
-#2.11 Write the full model results as a csv file
-write.csv(control_group_bpm_con_merged_adjusted_p_values_pivoted, "./results/bpm_control_group_results.csv", row.names = FALSE)
-
-
-#3. Test for differences in predicting connectivity based on bpm symptoms in the GAD group
-#3.1 Create a columns range for the bpm columns
-bpm_col_range <- 20:21
-connectivity_col_range <- 10:14
-
-#3.2 Create an empty dataframe to store analysis values
-GAD_group_bpm_con_results_df <- data.frame(bpm_column_name = character(),
-                                           column_name = character(),
-                                           IV = character(),
-                                           estimate = numeric(),
-                                           std_error = numeric(),
-                                           t_value = numeric(),
-                                           f_value = numeric(),
-                                           df = numeric(),
-                                           residual_df = numeric(),
-                                           p_value = numeric(),
-                                           stringsAsFactors = FALSE)
-
-#3.3 Run the lm for each combination of bpm metric and connectivity metric
-for (bpm_col_num in bpm_col_range) {
-  
-  #3.31 Get the bpm metric column name
-  bpm_col_name <- colnames(gad_group_dimensional_analysis_data)[bpm_col_num]
-  for (connectivity_col_num in connectivity_col_range) {
-    
-    #3.32 Get the connectivity metric column name
-    connectivity_col_name <- colnames(gad_group_dimensional_analysis_data)[connectivity_col_num]
-    print(paste("Modeling", connectivity_col_name, "~", bpm_col_name))
-    
-    #3.33 Run the linear regression model
-    GAD_group_bpm_con_mlm_analysis <- lmerTest::lmer(formula = paste0(connectivity_col_name, " ~ ", bpm_col_name, " + rsfmri_c_ngd_meanmotion + sex + (1|site_name)"), na.action = na.omit, data = gad_group_dimensional_analysis_data)
-    
-    #3.34 Run the ANCOVA Model
-    GAD_group_bpm_con_ANCOVA_analysis <- car::Anova(GAD_group_bpm_con_mlm_analysis, type = "II", test.statistic = "F")
-    
-    #3.35 Loop through fixed effects in the model
-    for (iv_name in row.names(GAD_group_bpm_con_ANCOVA_analysis)) {
-      summary_lm <- summary(GAD_group_bpm_con_mlm_analysis)
-      if (iv_name == bpm_col_name || iv_name == "rsfmri_c_ngd_meanmotion") {
-        
-        #3.351 For continuous variables (bpm_col_name, rsfmri_c_ngd_meanmotion)
-        matched_row <- grep(paste0("^", iv_name, "$"), rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          estimate <- summary_lm$coefficients[matched_row, "Estimate"]
-          std_error <- summary_lm$coefficients[matched_row, "Std. Error"]
-          t_value <- summary_lm$coefficients[matched_row, "t value"]
-          p_value <- summary_lm$coefficients[matched_row, "Pr(>|t|)"]
-          GAD_group_bpm_con_results_df <- rbind(
-            GAD_group_bpm_con_results_df,
-            data.frame(bpm_column_name = bpm_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = estimate,
-                       std_error = std_error,
-                       t_value = t_value,
-                       f_value = NA,
-                       df = NA,
-                       residual_df = NA,
-                       p_value = p_value))
-        }
-      } else {
-        
-        #3.352 For categorical variables (analysis_group, analysis_group*bpm_col_name, sex, eventname)
-        matched_row <- grep(iv_name, rownames(summary_lm$coefficients))
-        print(paste("Matching", iv_name, "with row index", matched_row))
-        if (length(matched_row) > 0) {
-          f_value <- GAD_group_bpm_con_ANCOVA_analysis[iv_name, "F"]
-          df <- GAD_group_bpm_con_ANCOVA_analysis[iv_name, "Df"]
-          residual_df <- GAD_group_bpm_con_ANCOVA_analysis[iv_name, "Df.res"]
-          p_value <- GAD_group_bpm_con_ANCOVA_analysis[iv_name, "Pr(>F)"]
-          GAD_group_bpm_con_results_df <- rbind(
-            GAD_group_bpm_con_results_df,
-            data.frame(bpm_column_name = bpm_col_name, 
-                       column_name = connectivity_col_name,
-                       IV = iv_name,
-                       estimate = NA,
-                       std_error = NA,
-                       t_value = NA,
-                       f_value = f_value,
-                       df = df,
-                       residual_df = residual_df,
-                       p_value = p_value))
-        }
-      }
-    }
-  }
+if (length(unexpected_groups) > 0) {
+  stop(
+    "Unexpected analysis groups: ",
+    paste(unexpected_groups, collapse = ", "),
+    ".")
 }
 
-#3.4 Subset the data based on the relevant IV variable strings for FDR correction of p values
-GAD_group_bpm_con_bpm_p_adjust_subset <- subset(GAD_group_bpm_con_results_df, grepl("bpm_", IV))
+# The wrangling script already creates the simultaneous four-score CBCL
+cbcl_analysis_data <- dimensional_data %>%
+  dplyr::filter(
+    dplyr::if_all(
+      dplyr::all_of(c(
+        connectivity_vars,
+        cbcl_vars,
+        "subjectkey",
+        "family_id",
+        "eventname",
+        "analysis_group",
+        "group",
+        "interview_age",
+        "age_in_years",
+        "sex",
+        "site_name",
+        "rsfmri_c_ngd_meanmotion")),
+      ~ !is.na(.x) & trimws(as.character(.x)) != ""))
 
-#3.5 Create a new column conducting an FDR (p adjustment) on the derived p values
-GAD_group_bpm_con_bpm_p_adjust_subset$p_adjusted <- p.adjust(GAD_group_bpm_con_bpm_p_adjust_subset$p_value, method = "fdr")
+if (nrow(cbcl_analysis_data) != expected_cbcl_n) {
+  stop(
+    "The CBCL analysis sample contains ",
+    nrow(cbcl_analysis_data),
+    " rows; expected ",
+    expected_cbcl_n,
+    ".")
+}
 
-#3.6 Create a new dataframe where only significant results are stored
-GAD_group_bpm_con_significant_results <- subset(GAD_group_bpm_con_bpm_p_adjust_subset, p_adjusted <= 0.05)
+if (dplyr::n_distinct(cbcl_analysis_data$subjectkey) != expected_cbcl_n) {
+  stop("The CBCL analysis sample must contain one observation per participant.")
+}
 
-#3.7 Join the FDR corrected p-values with the rest of the model results 
-GAD_group_bpm_con_merged_adjusted_p_values <- left_join(GAD_group_bpm_con_results_df, GAD_group_bpm_con_bpm_p_adjust_subset)
+assert_exact_counts(
+  data = cbcl_analysis_data,
+  expected_counts = expected_cbcl_group_counts,
+  grouping_variables = "analysis_group",
+  dataset_name = "Primary CBCL analysis sample")
 
-#3.8 Remove all numbers from the strings in the column IV (for later merging purposes)
-GAD_group_bpm_con_merged_adjusted_p_values$IV <- gsub("\\d+", "", GAD_group_bpm_con_merged_adjusted_p_values$IV)
+assert_exact_counts(
+  data = cbcl_analysis_data,
+  expected_counts = expected_cbcl_group_event_counts,
+  grouping_variables = c("analysis_group", "eventname"),
+  dataset_name = "Primary CBCL analysis sample")
 
-#3.91 Rename IV values to match paper's format (e.g., bpm Score, Diagnosis Group, FD Motion, Sex, Timepoint)
-GAD_group_bpm_con_merged_adjusted_p_values <- GAD_group_bpm_con_merged_adjusted_p_values %>%
-  mutate(
-    IV = case_when(
-      grepl("^bpm_", IV) & !grepl("analysis_group", IV) ~ "bpm Score",
-      IV == "rsfmri_c_ngd_meanmotion" ~ "FD Motion",
-      IV == "sex" ~ "Sex",
-      IV == "eventname" ~ "Timepoint"))
+assert_complete(
+  cbcl_analysis_data,
+  c(
+    connectivity_vars,
+    cbcl_vars,
+    "subjectkey",
+    "family_id",
+    "eventname",
+    "analysis_group",
+    "sex",
+    "site_name",
+    "rsfmri_c_ngd_meanmotion"),
+  "Primary CBCL analysis sample")
 
-#3.92 Remove rows with Intercept values
-GAD_group_bpm_con_merged_adjusted_p_values <- GAD_group_bpm_con_merged_adjusted_p_values[GAD_group_bpm_con_merged_adjusted_p_values$IV != "(Intercept)", ]
+# Preserve the published BPM approach: the BPM sample is the complete BPM
+# subset nested within the simultaneous four-score CBCL sample
+bpm_analysis_data <- cbcl_analysis_data %>%
+  dplyr::filter(
+    dplyr::if_all(
+      dplyr::all_of(bpm_vars),
+      ~ !is.na(.x)))
 
-#3.101 Pivot the full model results to be wider
-GAD_group_bpm_con_merged_adjusted_p_values_pivoted <- GAD_group_bpm_con_merged_adjusted_p_values %>%
-  pivot_wider(
-    id_cols = c(bpm_column_name, column_name),
-    names_from = IV,
-    values_from = c(f_value, df, residual_df, p_value, p_adjusted, estimate, t_value, std_error),
-    names_glue = "{IV}_{.value}")
+if (nrow(bpm_analysis_data) == 0L) {
+  stop("The primary BPM analysis sample is empty.")
+}
 
-#3.102 Reorder columns to match the order in your paper
-GAD_group_bpm_con_merged_adjusted_p_values_pivoted <- GAD_group_bpm_con_merged_adjusted_p_values_pivoted %>%
-  dplyr::select(c(bpm_column_name, column_name, `bpm Score_estimate`, `bpm Score_t_value`, `bpm Score_std_error`, `bpm Score_p_value`, `bpm Score_p_adjusted`, `FD Motion_estimate`, `FD Motion_t_value`, `FD Motion_std_error`, `FD Motion_p_value`, `Sex_f_value`, `Sex_df`, `Sex_residual_df`, `Sex_p_value`))
+if (dplyr::n_distinct(bpm_analysis_data$analysis_group) != 2L) {
+  stop("The primary BPM analysis sample does not contain both groups.")
+}
 
-#3.11 Write the full model results as a csv file
-write.csv(GAD_group_bpm_con_merged_adjusted_p_values_pivoted, "./results/bpm_GAD_group_results.csv", row.names = FALSE)
+# Match the published factor construction. Control is explicitly retained as
+# the reference diagnostic group
+prepare_factors <- function(data) {
+  data %>%
+    dplyr::mutate(
+      subjectkey = factor(subjectkey),
+      family_id = factor(family_id),
+      eventname = factor(eventname),
+      analysis_group = factor(
+        analysis_group,
+        levels = analysis_groups),
+      group = factor(group),
+      sex = factor(sex),
+      site_name = factor(site_name))
+}
+
+cbcl_analysis_data <- prepare_factors(cbcl_analysis_data)
+bpm_analysis_data <- prepare_factors(bpm_analysis_data)
+
+cbcl_gad_n <- sum(cbcl_analysis_data$analysis_group == "GAD")
+cbcl_control_n <- sum(cbcl_analysis_data$analysis_group == "control")
+bpm_gad_n <- sum(bpm_analysis_data$analysis_group == "GAD")
+bpm_control_n <- sum(bpm_analysis_data$analysis_group == "control")
+
+message(
+  "CBCL analysis sample validated: ",
+  nrow(cbcl_analysis_data),
+  " participants (",
+  cbcl_control_n,
+  " Controls; ",
+  cbcl_gad_n,
+  " GAD).")
+
+message(
+  "BPM analysis sample validated: ",
+  nrow(bpm_analysis_data),
+  " participants (",
+  bpm_control_n,
+  " Controls; ",
+  bpm_gad_n,
+  " GAD).")
+
+print(
+  bpm_analysis_data %>%
+    dplyr::count(analysis_group, eventname, name = "n"))
+
+
+## Model Functions ##
+
+# Fit one symptom-outcome pair using:
+# 1. the published merged interaction specification;
+# 2. a no-interaction pooled model with otherwise identical specification;
+# 3. the published GAD-only specification; and
+# 4. the published Control-only specification
+fit_dimensional_pair <- function(
+    data,
+    symptom,
+    outcome,
+    analysis_order,
+    outcome_label,
+    family_name) {
+
+  is_cbcl <- identical(family_name, "CBCL")
+
+  if (is_cbcl) {
+    interaction_rhs <- paste0(
+      symptom,
+      " * analysis_group + rsfmri_c_ngd_meanmotion + sex + eventname + ",
+      "(1 | site_name) + (1 | family_id)")
+
+    pooled_rhs <- paste0(
+      symptom,
+      " + analysis_group + rsfmri_c_ngd_meanmotion + sex + eventname + ",
+      "(1 | site_name) + (1 | family_id)")
+
+    subgroup_rhs <- paste0(
+      symptom,
+      " + rsfmri_c_ngd_meanmotion + sex + eventname + ",
+      "(1 | site_name) + (1 | family_id)")
+  } else {
+    
+    # Published BPM specifications: no event fixed effect in the merged
+    # model and a site-only random intercept in the subgroup models
+    interaction_rhs <- paste0(
+      symptom,
+      " * analysis_group + rsfmri_c_ngd_meanmotion + sex + ",
+      "(1 | site_name) + (1 | family_id)")
+
+    pooled_rhs <- paste0(
+      symptom,
+      " + analysis_group + rsfmri_c_ngd_meanmotion + sex + ",
+      "(1 | site_name) + (1 | family_id)")
+
+    subgroup_rhs <- paste0(
+      symptom,
+      " + rsfmri_c_ngd_meanmotion + sex + (1 | site_name)")
+  }
+
+  interaction_formula <- safe_formula(outcome, interaction_rhs)
+  pooled_formula <- safe_formula(outcome, pooled_rhs)
+  subgroup_formula <- safe_formula(outcome, subgroup_rhs)
+
+  interaction_fit <- fit_lmer_safe(interaction_formula, data)
+  pooled_fit <- fit_lmer_safe(pooled_formula, data)
+
+  gad_data <- data %>%
+    dplyr::filter(analysis_group == "GAD") %>%
+    droplevels()
+
+  control_data <- data %>%
+    dplyr::filter(analysis_group == "control") %>%
+    droplevels()
+
+  gad_fit <- fit_lmer_safe(subgroup_formula, gad_data)
+  control_fit <- fit_lmer_safe(subgroup_formula, control_data)
+
+  interaction_term_candidates <- c(
+    paste0(symptom, ":analysis_group"),
+    paste0("analysis_group:", symptom))
+
+  interaction_test <- extract_anova_term(
+    interaction_fit$model,
+    interaction_term_candidates,
+    type = "III")
+
+  diagnosis_group_test <- extract_anova_term(
+    interaction_fit$model,
+    "analysis_group",
+    type = "III")
+
+  interaction_motion <- extract_coefficient(
+    interaction_fit$model,
+    "rsfmri_c_ngd_meanmotion")
+
+  interaction_sex <- extract_anova_term(
+    interaction_fit$model,
+    "sex",
+    type = "III")
+
+  interaction_event <- if (is_cbcl) {
+    extract_anova_term(
+      interaction_fit$model,
+      "eventname",
+      type = "III")
+  } else {
+    tibble::tibble(
+      f_value = NA_real_,
+      numerator_df = NA_real_,
+      denominator_df = NA_real_,
+      p_value = NA_real_)
+  }
+
+  group_trends <- extract_group_trends(
+    interaction_fit$model,
+    symptom)
+
+  pooled_slope <- extract_coefficient(
+    pooled_fit$model,
+    symptom)
+
+  gad_slope <- extract_coefficient(gad_fit$model, symptom)
+  gad_motion <- extract_coefficient(
+    gad_fit$model,
+    "rsfmri_c_ngd_meanmotion")
+  gad_sex <- extract_anova_term(gad_fit$model, "sex", type = "II")
+  gad_event <- if (is_cbcl) {
+    extract_anova_term(gad_fit$model, "eventname", type = "II")
+  } else {
+    tibble::tibble(
+      f_value = NA_real_,
+      numerator_df = NA_real_,
+      denominator_df = NA_real_,
+      p_value = NA_real_)
+  }
+
+  control_slope <- extract_coefficient(control_fit$model, symptom)
+  control_motion <- extract_coefficient(
+    control_fit$model,
+    "rsfmri_c_ngd_meanmotion")
+  control_sex <- extract_anova_term(
+    control_fit$model,
+    "sex",
+    type = "II")
+  control_event <- if (is_cbcl) {
+    extract_anova_term(control_fit$model, "eventname", type = "II")
+  } else {
+    tibble::tibble(
+      f_value = NA_real_,
+      numerator_df = NA_real_,
+      denominator_df = NA_real_,
+      p_value = NA_real_)
+  }
+
+  base_columns <- tibble::tibble(
+    analysis_dataset = analysis_dataset,
+    dataset_label = dataset_label,
+    symptom_family = family_name,
+    symptom_variable = symptom,
+    analysis_order = analysis_order,
+    column_name = outcome,
+    DV_Summary = outcome_label,
+    published_interaction_formula =
+      paste(deparse(interaction_formula), collapse = " "),
+    added_pooled_formula = paste(deparse(pooled_formula), collapse = " "),
+    published_subgroup_formula =
+      paste(deparse(subgroup_formula), collapse = " "))
+
+  merged_result <- dplyr::bind_cols(
+    base_columns,
+    prefix_columns(interaction_test, "interaction_"),
+    prefix_columns(
+      group_trends$control,
+      "control_slope_from_interaction_"),
+    prefix_columns(
+      group_trends$gad,
+      "gad_slope_from_interaction_"),
+    prefix_columns(
+      group_trends$difference,
+      "gad_minus_control_slope_"),
+    prefix_columns(pooled_slope, "pooled_slope_"),
+    prefix_columns(diagnosis_group_test, "diagnosis_group_"),
+    prefix_columns(interaction_motion, "interaction_motion_"),
+    prefix_columns(interaction_sex, "interaction_sex_"),
+    prefix_columns(interaction_event, "interaction_event_"),
+    prefix_columns(
+      extract_diagnostics(interaction_fit, data),
+      "interaction_model_"),
+    prefix_columns(
+      extract_diagnostics(pooled_fit, data),
+      "pooled_model_"))
+
+  gad_result <- dplyr::bind_cols(
+    base_columns,
+    tibble::tibble(analysis_group = "GAD"),
+    prefix_columns(gad_slope, "symptom_slope_"),
+    prefix_columns(gad_motion, "motion_"),
+    prefix_columns(gad_sex, "sex_"),
+    prefix_columns(gad_event, "event_"),
+    prefix_columns(
+      extract_diagnostics(gad_fit, gad_data),
+      "model_"))
+
+  control_result <- dplyr::bind_cols(
+    base_columns,
+    tibble::tibble(analysis_group = "control"),
+    prefix_columns(control_slope, "symptom_slope_"),
+    prefix_columns(control_motion, "motion_"),
+    prefix_columns(control_sex, "sex_"),
+    prefix_columns(control_event, "event_"),
+    prefix_columns(
+      extract_diagnostics(control_fit, control_data),
+      "model_"))
+
+  list(
+    merged = merged_result,
+    gad = gad_result,
+    control = control_result)
+}
+
+run_dimensional_family <- function(
+    data,
+    symptom_variables,
+    family_name) {
+
+  model_grid <- tidyr::crossing(
+    symptom_variable = symptom_variables,
+    metric_manifest %>%
+      dplyr::select(
+        analysis_order,
+        column_name,
+        DV_Summary)) %>%
+    dplyr::arrange(
+      match(symptom_variable, symptom_variables),
+      analysis_order)
+
+  model_results <- purrr::pmap(
+    model_grid,
+    function(
+        symptom_variable,
+        analysis_order,
+        column_name,
+        DV_Summary) {
+      message(
+        family_name,
+        ": modeling ",
+        DV_Summary,
+        " ~ ",
+        symptom_variable)
+
+      fit_dimensional_pair(
+        data = data,
+        symptom = symptom_variable,
+        outcome = column_name,
+        analysis_order = analysis_order,
+        outcome_label = DV_Summary,
+        family_name = family_name)
+    })
+
+  merged_results <- purrr::map_dfr(model_results, "merged") %>%
+    dplyr::arrange(
+      match(symptom_variable, symptom_variables),
+      analysis_order) %>%
+    add_fdr_columns(
+      c(
+        "interaction_p_value",
+        "control_slope_from_interaction_p_value",
+        "gad_slope_from_interaction_p_value",
+        "gad_minus_control_slope_p_value",
+        "pooled_slope_p_value"))
+
+  gad_results <- purrr::map_dfr(model_results, "gad") %>%
+    dplyr::arrange(
+      match(symptom_variable, symptom_variables),
+      analysis_order) %>%
+    add_fdr_columns("symptom_slope_p_value")
+
+  control_results <- purrr::map_dfr(model_results, "control") %>%
+    dplyr::arrange(
+      match(symptom_variable, symptom_variables),
+      analysis_order) %>%
+    add_fdr_columns("symptom_slope_p_value")
+
+  list(
+    merged = merged_results,
+    gad = gad_results,
+    control = control_results)
+}
+
+validate_result_family <- function(
+    results,
+    family_name,
+    expected_rows,
+    expected_merged_n,
+    expected_gad_n,
+    expected_control_n) {
+
+  if (
+    nrow(results$merged) != expected_rows ||
+      nrow(results$gad) != expected_rows ||
+      nrow(results$control) != expected_rows) {
+    stop(
+      family_name,
+      " did not return the expected ",
+      expected_rows,
+      " rows per result family.")
+  }
+
+  merged_error_rows <- results$merged %>%
+    dplyr::filter(
+      has_text(interaction_model_error) |
+        has_text(pooled_model_error))
+
+  gad_error_rows <- results$gad %>%
+    dplyr::filter(has_text(model_error))
+
+  control_error_rows <- results$control %>%
+    dplyr::filter(has_text(model_error))
+
+  if (
+    nrow(merged_error_rows) > 0 ||
+      nrow(gad_error_rows) > 0 ||
+      nrow(control_error_rows) > 0) {
+    print(
+      tibble::tibble(
+        result_family = c("merged", "GAD", "control"),
+        n_model_error_rows = c(
+          nrow(merged_error_rows),
+          nrow(gad_error_rows),
+          nrow(control_error_rows))))
+    stop(family_name, " contains one or more model-fitting errors.")
+  }
+
+  merged_convergence_rows <- results$merged %>%
+    dplyr::filter(
+      has_text(interaction_model_convergence_messages) |
+        has_text(pooled_model_convergence_messages))
+
+  gad_convergence_rows <- results$gad %>%
+    dplyr::filter(has_text(model_convergence_messages))
+
+  control_convergence_rows <- results$control %>%
+    dplyr::filter(has_text(model_convergence_messages))
+
+  if (
+    nrow(merged_convergence_rows) > 0 ||
+      nrow(gad_convergence_rows) > 0 ||
+      nrow(control_convergence_rows) > 0) {
+    print(
+      tibble::tibble(
+        result_family = c("merged", "GAD", "control"),
+        n_convergence_rows = c(
+          nrow(merged_convergence_rows),
+          nrow(gad_convergence_rows),
+          nrow(control_convergence_rows))))
+    stop(
+      family_name,
+      " contains one or more optimizer convergence messages. No outputs were written.")
+  }
+
+  optimizer_failed <- function(x) {
+    has_text(x) & trimws(as.character(x)) != "0"
+  }
+
+  merged_optimizer_rows <- results$merged %>%
+    dplyr::filter(
+      optimizer_failed(interaction_model_optimizer_code) |
+        optimizer_failed(pooled_model_optimizer_code))
+
+  gad_optimizer_rows <- results$gad %>%
+    dplyr::filter(optimizer_failed(model_optimizer_code))
+
+  control_optimizer_rows <- results$control %>%
+    dplyr::filter(optimizer_failed(model_optimizer_code))
+
+  if (
+    nrow(merged_optimizer_rows) > 0 ||
+      nrow(gad_optimizer_rows) > 0 ||
+      nrow(control_optimizer_rows) > 0) {
+    print(
+      tibble::tibble(
+        result_family = c("merged", "GAD", "control"),
+        n_nonzero_optimizer_code_rows = c(
+          nrow(merged_optimizer_rows),
+          nrow(gad_optimizer_rows),
+          nrow(control_optimizer_rows))))
+    stop(
+      family_name,
+      " contains one or more nonzero optimizer return codes. No outputs were written.")
+  }
+
+  required_merged_inference <- c(
+    "interaction_p_value",
+    "control_slope_from_interaction_p_value",
+    "gad_slope_from_interaction_p_value",
+    "gad_minus_control_slope_p_value",
+    "pooled_slope_p_value")
+
+  merged_missing_inference <- vapply(
+    required_merged_inference,
+    function(variable) sum(!is.finite(results$merged[[variable]])),
+    integer(1))
+
+  gad_missing_inference <- sum(
+    !is.finite(results$gad$symptom_slope_p_value))
+
+  control_missing_inference <- sum(
+    !is.finite(results$control$symptom_slope_p_value))
+
+  if (
+    any(merged_missing_inference > 0) ||
+      gad_missing_inference > 0 ||
+      control_missing_inference > 0) {
+    print(merged_missing_inference[merged_missing_inference > 0])
+    print(
+      c(
+        gad_missing_inference = gad_missing_inference,
+        control_missing_inference = control_missing_inference))
+    stop(
+      family_name,
+      " contains missing required inferential results. No outputs were written.")
+  }
+
+  if (
+    any(results$merged$interaction_model_n_observations != expected_merged_n) ||
+      any(results$merged$pooled_model_n_observations != expected_merged_n) ||
+      any(results$gad$model_n_observations != expected_gad_n) ||
+      any(results$control$model_n_observations != expected_control_n)) {
+    stop(
+      family_name,
+      " model observation counts do not match the validated analysis samples.")
+  }
+
+  singular_summary <- tibble::tibble(
+    model_family = c(
+      "merged interaction",
+      "merged pooled",
+      "GAD subgroup",
+      "Control subgroup"),
+    n_singular = c(
+      sum(results$merged$interaction_model_singular %in% TRUE),
+      sum(results$merged$pooled_model_singular %in% TRUE),
+      sum(results$gad$model_singular %in% TRUE),
+      sum(results$control$model_singular %in% TRUE)))
+
+  message(family_name, " model validation passed.")
+  print(singular_summary)
+
+  invisible(singular_summary)
+}
+
+
+## Run CBCL Models ##
+
+cbcl_results <- run_dimensional_family(
+  data = cbcl_analysis_data,
+  symptom_variables = cbcl_vars,
+  family_name = "CBCL")
+
+# Four symptoms x 20 outcomes = 80 tests per inferential family.
+validate_result_family(
+  results = cbcl_results,
+  family_name = "CBCL",
+  expected_rows = 80L,
+  expected_merged_n = nrow(cbcl_analysis_data),
+  expected_gad_n = cbcl_gad_n,
+  expected_control_n = cbcl_control_n)
+
+
+## Run BPM Models ##
+
+bpm_results <- run_dimensional_family(
+  data = bpm_analysis_data,
+  symptom_variables = bpm_vars,
+  family_name = "BPM")
+
+# Two symptoms x 20 outcomes = 40 tests per inferential family.
+validate_result_family(
+  results = bpm_results,
+  family_name = "BPM",
+  expected_rows = 40L,
+  expected_merged_n = nrow(bpm_analysis_data),
+  expected_gad_n = bpm_gad_n,
+  expected_control_n = bpm_control_n)
+
+
+## Output ##
+
+# Write none of the six result files until both complete model families have
+# finished and passed all row-count, model-error, convergence, and inference
+# checks. FDR corrections are performed independently within each primary
+# inferential family
+write_csv_safely(cbcl_results$merged, cbcl_merged_out_path)
+write_csv_safely(cbcl_results$gad, cbcl_gad_out_path)
+write_csv_safely(cbcl_results$control, cbcl_hc_out_path)
+write_csv_safely(bpm_results$merged, bpm_merged_out_path)
+write_csv_safely(bpm_results$gad, bpm_gad_out_path)
+write_csv_safely(bpm_results$control, bpm_hc_out_path)
+
+
+## Completion Summary ##
+
+message(
+  "Primary dimensional analyses completed successfully. Results are in: ",
+  results_dir)
+
+message(
+  "Published model specifications were replicated across the 20 corrected ",
+  "outcomes. Added pooled models test the actual group-adjusted whole-sample ",
+  "symptom association without a symptom-by-group interaction.")
+
+message(
+  "Principal BH-FDR families: 80 tests for each CBCL inferential family and ",
+  "40 tests for each BPM inferential family. Secondary within-symptom FDR ",
+  "columns correct across the 20 outcomes for each symptom.")
