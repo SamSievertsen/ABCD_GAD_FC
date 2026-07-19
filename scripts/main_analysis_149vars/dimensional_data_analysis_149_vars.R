@@ -32,18 +32,12 @@ metric_manifest_path <- "./results/results_149_vars/repeated_measures_dv_manifes
 results_dir <- "./results/results_149_vars/dimensional"
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
-cbcl_merged_out_path <-
-  file.path(results_dir, "cbcl_merged_intx_analysis_results.csv")
-cbcl_gad_out_path <-
-  file.path(results_dir, "cbcl_gad_group_analysis_results.csv")
-cbcl_hc_out_path <-
-  file.path(results_dir, "cbcl_hc_group_analysis_results.csv")
-bpm_merged_out_path <-
-  file.path(results_dir, "bpm_merged_group_results.csv")
-bpm_gad_out_path <-
-  file.path(results_dir, "bpm_gad_group_results.csv")
-bpm_hc_out_path <-
-  file.path(results_dir, "bpm_control_group_results.csv")
+cbcl_merged_out_path <- file.path(results_dir, "cbcl_merged_intx_analysis_results.csv")
+cbcl_gad_out_path <- file.path(results_dir, "cbcl_gad_group_analysis_results.csv")
+cbcl_hc_out_path <- file.path(results_dir, "cbcl_hc_group_analysis_results.csv")
+bpm_merged_out_path <- file.path(results_dir, "bpm_merged_group_results.csv")
+bpm_gad_out_path <- file.path(results_dir, "bpm_gad_group_results.csv")
+bpm_hc_out_path <- file.path(results_dir, "bpm_control_group_results.csv")
 
 
 ## Constants ##
@@ -424,8 +418,7 @@ extract_anova_term <- function(model, term_candidates, type) {
       c("Pr(>F)", "Pr..F."))[[1]])
 }
 
-# Extract Control and GAD symptom slopes and their GAD-minus-Control difference
-# from the published interaction model
+# Extract Control and GAD symptom slopes and their GAD-minus-Control difference from the published interaction model
 extract_group_trends <- function(model, symptom) {
   empty_slope <- tibble::tibble(
     estimate = NA_real_,
@@ -684,8 +677,7 @@ assert_complete(
     "rsfmri_c_ngd_meanmotion"),
   "Primary CBCL analysis sample")
 
-# Preserve the published BPM approach: the BPM sample is the complete BPM
-# subset nested within the simultaneous four-score CBCL sample
+# Preserve the published BPM approach: the BPM sample is the complete BPM subset nested within the simultaneous four-score CBCL sample
 bpm_analysis_data <- cbcl_analysis_data %>%
   dplyr::filter(
     dplyr::if_all(
@@ -700,8 +692,7 @@ if (dplyr::n_distinct(bpm_analysis_data$analysis_group) != 2L) {
   stop("The primary BPM analysis sample does not contain both groups.")
 }
 
-# Match the published factor construction. Control is explicitly retained as
-# the reference diagnostic group
+# Match the published factor settings in that HC is retained as the reference diagnostic group
 prepare_factors <- function(data) {
   data %>%
     dplyr::mutate(
@@ -781,8 +772,7 @@ fit_dimensional_pair <- function(
       "(1 | site_name) + (1 | family_id)")
   } else {
     
-    # Published BPM specifications: no event fixed effect in the merged
-    # model and a site-only random intercept in the subgroup models
+    # Published BPM specifications = no event fixed effect in the merged model and a site-only random intercept in the subgroup models
     interaction_rhs <- paste0(
       symptom,
       " * analysis_group + rsfmri_c_ngd_meanmotion + sex + ",
@@ -1198,7 +1188,7 @@ cbcl_results <- run_dimensional_family(
   symptom_variables = cbcl_vars,
   family_name = "CBCL")
 
-# Four symptoms x 20 outcomes = 80 tests per inferential family.
+# Four symptoms x 20 outcomes = 80 tests per inferential family
 validate_result_family(
   results = cbcl_results,
   family_name = "CBCL",
@@ -1215,7 +1205,7 @@ bpm_results <- run_dimensional_family(
   symptom_variables = bpm_vars,
   family_name = "BPM")
 
-# Two symptoms x 20 outcomes = 40 tests per inferential family.
+# Two symptoms x 20 outcomes = 40 tests per inferential family
 validate_result_family(
   results = bpm_results,
   family_name = "BPM",
@@ -1227,10 +1217,7 @@ validate_result_family(
 
 ## Output ##
 
-# Write none of the six result files until both complete model families have
-# finished and passed all row-count, model-error, convergence, and inference
-# checks. FDR corrections are performed independently within each primary
-# inferential family
+# Write none of the six result files until both complete model families have finished and passed all row-count, model-error, convergence, and inference checks. FDR corrections are performed independently within each inferential family
 write_csv_safely(cbcl_results$merged, cbcl_merged_out_path)
 write_csv_safely(cbcl_results$gad, cbcl_gad_out_path)
 write_csv_safely(cbcl_results$control, cbcl_hc_out_path)
@@ -1248,9 +1235,9 @@ message(
 message(
   "Published model specifications were replicated across the 20 corrected ",
   "outcomes. Added pooled models test the actual group-adjusted whole-sample ",
-  "symptom association without a symptom-by-group interaction.")
+  "symptom association without a symptom-by-group interaction")
 
 message(
   "Principal BH-FDR families: 80 tests for each CBCL inferential family and ",
   "40 tests for each BPM inferential family. Secondary within-symptom FDR ",
-  "columns correct across the 20 outcomes for each symptom.")
+  "columns correct across the 20 outcomes for each symptom")
